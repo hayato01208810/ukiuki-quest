@@ -1,0 +1,2390 @@
+<title>うきうきわくわくクエスト</title>
+<script src="firebase-config.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* Layout: one phone-width column. Title, then the game card (home / tutorial / dungeon / result), then the ranking.
+   Look: 8-bit dungeon RPG. Black message boxes with white frames over a navy brick wall. One fixed dark look by choice. */
+:root {
+  --bg: #1a2760;
+  --bg2: #16215a;
+  --box: #05060d;
+  --line: #eef2fa;
+  --ink: #f4f6fb;
+  --muted: #a3b2da;
+  --accent: #ffd34d;
+  --ok: #5fe08d;
+  --ng: #ff6b6b;
+  --heart: #e0343c;
+  --heart-off: #2b3157;
+  --font-dot: "DotGothic16", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--bg2) 2px, transparent 2px), linear-gradient(90deg, var(--bg2) 2px, transparent 2px);
+  background-size: 36px 18px;
+  color: var(--ink);
+  font-family: var(--font-dot);
+  font-size: 16px;
+  line-height: 1.7;
+  padding-inline: 14px;
+}
+.wrap { max-width: 520px; margin: 0 auto; padding-block: 20px 56px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, p, ul { margin: 0; }
+.ln { white-space: nowrap; }
+h1 { font-size: 2rem; font-weight: 400; line-height: 1.25; color: var(--accent); text-wrap: balance; }
+h2 { font-size: 1.25rem; font-weight: 400; text-wrap: balance; }
+.kicker { color: var(--muted); letter-spacing: 0.12em; font-size: 0.9rem; }
+.lede { color: var(--muted); font-size: 0.92rem; margin-top: 6px; }
+header { display: flex; flex-direction: column; gap: 2px; }
+
+.box { background: var(--box); border: 3px solid var(--line); border-radius: 4px; box-shadow: 0 0 0 2px var(--box); padding: 14px 16px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+#play { display: flex; flex-direction: column; gap: 12px; }
+
+.hud { display: flex; justify-content: space-between; align-items: stretch; gap: 10px; }
+.hud .box { padding: 8px 12px; line-height: 1.5; }
+.hud .l { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hud .r { text-align: center; display: flex; flex-direction: column; justify-content: center; white-space: nowrap; }
+.hud .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12em; }
+.hp { display: flex; align-items: center; gap: 8px; }
+.hearts { display: flex; gap: 3px; }
+.heart { width: 22px; height: 20px; }
+.heart rect { fill: var(--heart); }
+.heart.lost rect { fill: var(--heart-off); }
+
+.scene { position: relative; border: 3px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--box); line-height: 0; }
+.scene.tutbg { background: var(--box) url("tutorial-bg2.jpg") center bottom / cover no-repeat; }
+.scene.chubg { background: var(--box) url("chu-bg.jpg") center 5% / cover no-repeat; }
+.scene.chubg .enemy-wrap { bottom: 2%; } /* 中級: 台座の手前のカーペットに立たせる */
+.scene.rbg { background: var(--box) center bottom / cover no-repeat; }
+.scene.rbg .enemy-wrap { bottom: 10%; }
+.scene.nbg { background: var(--box) url("noodle-bg.jpg") center bottom / cover no-repeat; }
+.scene.nbg .enemy-wrap { bottom: 9%; }
+.pawa { text-align: center; color: #ffd34d; font-weight: bold; margin: 2px 0; }
+.bossbar { position: absolute; z-index: 3; left: 6px; bottom: 6px; display: flex; align-items: center; gap: 6px; padding: 3px 10px; background: rgba(20,8,8,.82); border: 2px solid #ffb347; line-height: 1; color: #ffd9a0; font-size: .8rem; pointer-events: none; }
+.bossbar i { display: block; width: 18px; height: 12px; background: #ff8a2a; box-shadow: 0 0 6px #ff8a2a; }
+.bossbar i.off { background: #3a2a22; box-shadow: none; }
+.ov { position: absolute; z-index: 2; pointer-events: none; line-height: 1.4; font-size: 0.82rem; padding: 3px 8px; border-width: 2px; max-width: 46%; }
+.ov.tl { top: 6px; left: 6px; }
+.ov.tr { top: 6px; right: 6px; }
+.ov.br { bottom: 6px; right: 6px; display: flex; align-items: center; gap: 6px; }
+.ov .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov .heart { width: 16px; height: 14px; }
+.ov .hearts { gap: 2px; }
+.enemy-wrap { position: absolute; left: 50%; bottom: 36%; transform: translateX(-50%); transform-origin: 50% 100%; pointer-events: none; }
+.enemy-wrap.i0 { animation: idle-squash 1.1s ease-in-out infinite; }
+.enemy-wrap.i1 { animation: idle-float 1.8s ease-in-out infinite; }
+.enemy-wrap.i2 { animation: idle-sway 1s ease-in-out infinite; }
+.enemy-wrap.i3 { animation: idle-hop 0.8s ease-in-out infinite; }
+.enemy-wrap.i4 { animation: idle-rumble 0.3s linear infinite; }
+.enemy-wrap.i5 { animation: idle-pulse 0.9s ease-in-out infinite; }
+.enemy-wrap.i6 { animation: idle-wobble 1.4s ease-in-out infinite; }
+.enemy-wrap.i7 { animation: idle-stomp 1.3s ease-in infinite; }
+.enemy-wrap.i8 { animation: idle-tall 2.2s ease-in-out infinite; }
+.enemy-wrap.i9 { animation: idle-sway 1.2s ease-in-out infinite; }
+.enemy-wrap.i13 { animation: idle-stomp 1.5s ease-in infinite; }
+.enemy-wrap.i14 { animation: idle-float 2s ease-in-out infinite; }
+.enemy-wrap.i15 { animation: idle-wobble 1.2s ease-in-out infinite; }
+.enemy-wrap.i16 { animation: idle-pulse 1s ease-in-out infinite; }
+.enemy-wrap.i17 { animation: idle-hop 0.9s ease-in-out infinite; }
+.enemy-wrap.i18 { animation: idle-float 1.4s ease-in-out infinite; }
+.enemy-wrap.i19 { animation: idle-sway 1.6s ease-in-out infinite; }
+.enemy-wrap.i20 { animation: idle-float 1.5s ease-in-out infinite; }
+.enemy-wrap.i10 { animation: idle-sway 1.1s ease-in-out infinite; }
+.enemy-wrap.i11 { animation: idle-squash 0.7s ease-in-out infinite; }
+.enemy-wrap.i12 { animation: idle-pulse 1.6s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255,140,40,.55)); }
+.evbanner { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 4; width: max-content; max-width: 92%; text-align: center; line-height: 1.4; font-size: 0.92rem; color: #fff; background: rgba(5,6,13,.88); border: 2px solid var(--line); border-radius: 4px; padding: 3px 10px; pointer-events: none; }
+@keyframes idle-rumble { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(-51.3%); } 75% { transform: translateX(-48.7%); } }
+@keyframes idle-pulse { 0%, 100% { transform: translateX(-50%) scale(1) rotate(0deg); } 50% { transform: translateX(-50%) scale(1.08) rotate(-2.5deg); } }
+@keyframes idle-wobble { 0%, 100% { transform: translateX(-50%) rotate(-3deg) scale(1.02, 0.97); } 50% { transform: translateX(-50%) rotate(3deg) scale(0.98, 1.03); } }
+@keyframes idle-stomp { 0%, 60%, 100% { transform: translateX(-50%) translateY(0) scale(1, 1); } 30% { transform: translateX(-50%) translateY(-6%) rotate(-1.5deg); } 45% { transform: translateX(-50%) translateY(0) scale(1.03, 0.95); } }
+@keyframes idle-tall { 0%, 100% { transform: translateX(-50%) rotate(-2deg); } 50% { transform: translateX(-50%) rotate(2deg); } }
+.enemy { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
+/* 敵ごとの待機の動き: 一つ目=ぷるぷる / しま模様=ふわふわ / 人=ゆらゆら / 犬=ぴょんぴょん */
+@keyframes idle-squash { 0%, 100% { transform: translateX(-50%) scale(1, 1); } 50% { transform: translateX(-50%) scale(1.07, 0.92); } }
+@keyframes idle-float { 0%, 100% { transform: translateX(-50%) translateY(-6%) rotate(-2.5deg); } 50% { transform: translateX(-50%) translateY(0) rotate(2.5deg); } }
+@keyframes idle-sway { 0%, 100% { transform: translateX(-50%) rotate(-2deg) translateY(0); } 25% { transform: translateX(-50%) rotate(0deg) translateY(-2%); } 50% { transform: translateX(-50%) rotate(2deg) translateY(0); } 75% { transform: translateX(-50%) rotate(0deg) translateY(-2%); } }
+@keyframes idle-hop { 0%, 100% { transform: translateX(-50%) translateY(0) scale(1.04, 0.95); } 45% { transform: translateX(-50%) translateY(-9%) scale(0.97, 1.04); } 90% { transform: translateX(-50%) translateY(0) scale(1.04, 0.95); } }
+#scene { width: 100%; height: auto; aspect-ratio: 160 / 112; image-rendering: pixelated; display: block; }
+.scene.hit { animation: shake 0.4s steps(6) 0.38s; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+
+.q { font-size: 1.2rem; line-height: 1.7; text-wrap: balance; overflow-wrap: anywhere; }
+.qno { color: var(--muted); font-size: 0.85rem; }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt { display: flex; align-items: baseline; gap: 14px; width: 100%; text-align: left; font: inherit; font-size: 1.1rem; color: var(--ink); background: var(--box); border: 3px solid var(--line); border-radius: 4px; padding: 11px 14px; min-height: 52px; cursor: pointer; }
+.opt .lab { color: var(--accent); flex: none; }
+.opt .txt { min-width: 0; overflow-wrap: anywhere; }
+.opt:hover:not(:disabled) { border-color: var(--accent); }
+.opt:disabled { cursor: default; }
+.opt.ok { border-color: var(--ok); color: var(--ok); }
+.opt.ng { border-color: var(--ng); color: var(--ng); }
+.opt.dim { opacity: 0.55; }
+.fb { display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+.fb .head { font-size: 1.15rem; }
+.fb.ok .head { color: var(--ok); }
+.fb.ng .head { color: var(--ng); }
+.fb .tip { color: var(--accent); }
+
+.btn { font: inherit; font-size: 1.05rem; cursor: pointer; background: var(--accent); color: #1b1500; border: 3px solid var(--line); border-radius: 4px; padding: 10px 16px; min-height: 48px; }
+.btn.sub { background: var(--box); color: var(--ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:focus-visible, .opt:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.row-btns .btn { flex: 1 1 150px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { color: var(--muted); font-size: 0.85rem; }
+.field input, .field select, .field textarea { font: inherit; font-size: 1.05rem; color: var(--ink); background: var(--bg2); border: 3px solid var(--line); border-radius: 4px; padding: 9px 12px; min-width: 0; width: 100%; }
+.field textarea { resize: vertical; }
+.rules { padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+.rules li::marker { color: var(--accent); }
+.note { color: var(--muted); font-size: 0.85rem; }
+.locked { color: var(--muted); font-size: 0.85rem; }
+
+.bigstat { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.bigstat .n { font-size: 3.4rem; line-height: 1; color: var(--accent); }
+.verdict.clear { color: var(--ok); }
+.verdict.over { color: var(--ng); }
+.rainbow { background: linear-gradient(90deg,#ff3b3b,#ff9f1c,#ffe14d,#3ddc84,#3bb2ff,#8a5cff,#ff3bd4,#ff3b3b); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; animation: rb 2.5s linear infinite; font-weight: bold; }
+@keyframes rb { to { background-position: 200% 0; } }
+.titlebox { text-align: center; padding: 6px 0; font-size: 1.15em; }
+.titlebox small { display: block; font-size: .7em; opacity: .8; }
+.ttl { font-size: .8em; opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .rainbow { animation: none; } }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 0.95rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; }
+
+.board { display: flex; flex-direction: column; gap: 12px; }
+.board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.count { color: var(--muted); font-size: 0.9rem; }
+.tabs { display: flex; gap: 8px; }
+.tab { flex: 1; font: inherit; color: var(--ink); background: var(--box); border: 3px solid var(--line); border-radius: 4px; padding: 7px 10px; cursor: pointer; }
+.tab[aria-pressed="true"] { background: var(--accent); color: #1b1500; }
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rw { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--box); border: 3px solid var(--line); border-radius: 4px; padding: 10px 12px; }
+.rw.me { border-color: var(--accent); }
+.rk { text-align: center; font-size: 1.3rem; color: var(--muted); }
+.rw.top .rk { color: var(--accent); }
+.who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.nm2 { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.nm2 span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-tag { flex: none; font-size: 0.72rem; background: var(--accent); color: #1b1500; padding: 0 6px; border-radius: 2px; line-height: 1.5; }
+.meter { height: 6px; background: var(--heart-off); }
+.meter i { display: block; height: 100%; background: var(--accent); }
+.detail { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pct { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.pct small { font-size: 0.8rem; color: var(--muted); }
+.empty { color: var(--muted); font-size: 0.92rem; border: 3px dashed var(--muted); border-radius: 4px; padding: 16px; }
+
+
+/* ゲーム中は、画面の高さにぴったり収める(スクロールなし)。場面が伸び縮みして余りを使う */
+html.playing, html.playing body { height: 100%; overflow-y: auto; }
+html.playing .wrap { height: 100%; padding-block: 10px; gap: 0; }
+html.playing #play { flex: 1 1 auto; min-height: 0; gap: 8px; }
+.scene.game { flex: 1 1 0; min-height: 110px; }
+.scene.game #scene { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; object-fit: cover; }
+.qbox { flex: none; height: 6.6rem; overflow-y: auto; padding: 7px 12px; display: flex; flex-direction: column; gap: 2px; }
+.qbox .q { font-size: 1rem; line-height: 1.55; }
+.qbox.talk { cursor: pointer; border-color: #ffd54a; }
+.qbox .tapnext { align-self: flex-end; margin-top: auto; font-size: .8rem; opacity: .85; animation: op-start-blink 1.2s ease-in-out infinite alternate; }
+.qbox .head { font-size: 1.1rem; }
+.qbox.ok .head { color: var(--ok); }
+.qbox.ng .head { color: var(--ng); }
+.qbox .exp { font-size: 0.88rem; line-height: 1.5; overflow-wrap: anywhere; }
+.opts { flex: none; gap: 6px; }
+.opt { padding: 6px 12px; min-height: 42px; font-size: 1rem; gap: 10px; }
+.nxslot { flex: none; height: 50px; display: flex; }
+.nxslot .btn { flex: 1; height: 100%; min-height: 0; padding-block: 0; }
+.notice { font-size: 0.8rem; color: var(--muted); border: 2px solid var(--muted); border-radius: 4px; padding: 10px 12px; }
+.err { color: var(--ng); font-size: 0.9rem; }
+.ok-msg { color: var(--ok); font-size: 0.9rem; }
+.home-top { display: flex; justify-content: flex-end; }
+.btn.small { min-height: 40px; padding: 6px 12px; font-size: 0.95rem; }
+.myname { font-size: 1.05rem; }
+.myrate { color: var(--accent); font-size: 1.05rem; }
+.modes { display: flex; flex-direction: column; gap: 10px; }
+.mode { display: flex; flex-direction: column; gap: 4px; }
+.mode .btn { text-align: left; }
+.choice { display: flex; gap: 10px; align-items: center; }
+.field .choice input[type="radio"] { flex: none; width: 22px; height: 22px; padding: 0; accent-color: var(--accent); }
+.choice input[type="text"] { flex: 1; min-width: 0; }
+.qitem { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; border: 2px solid var(--muted); border-radius: 4px; padding: 10px 12px; }
+.qinfo { min-width: 0; overflow-wrap: anywhere; }
+.qbtns { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.tagst { color: var(--accent); font-size: 0.85rem; }
+.volbox { display: flex; flex-direction: column; gap: 4px; }
+.volbox label { color: var(--muted); font-size: 0.85rem; }
+.volbox input[type="range"] { width: 100%; min-height: 32px; accent-color: var(--accent); }
+.zk { display: flex; gap: 12px; align-items: center; border: 2px solid var(--muted); border-radius: 4px; padding: 8px 10px; }
+.zk-pic { position: relative; flex: none; width: 120px; height: 84px; background: linear-gradient(#2c2250, #4a3a80); border-radius: 3px; overflow: hidden; }
+.zk-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.zk-name { font-size: 0.98rem; line-height: 1.4; }
+
+@media (prefers-reduced-motion: reduce) { .scene.hit, .enemy-wrap { animation: none !important; } .enemy-wrap { transform: translateX(-50%); } }
+/* ===== オープニング ===== */
+#op { position: fixed; inset: 0; z-index: 1000; background: #000; overflow: hidden; font-family: var(--font-dot); color: #fff; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+#op[hidden] { display: none; }
+#op .op-start { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: 1.15rem; letter-spacing: .1em; animation: op-start-blink 1.2s ease-in-out infinite alternate; }
+@keyframes op-start-blink { from { opacity: 1; } to { opacity: .3; } }
+.evintro .qbox, .evintro .opts { visibility: hidden; }
+#op .op-pool { position: absolute; inset: 0; background: #06204a url("op-pool.jpg") center bottom / cover no-repeat; image-rendering: pixelated; transform: scale(1.9); filter: brightness(.5); opacity: 0; transform-origin: 50% 80%; }
+#op .op-uw { position: absolute; inset: 0; background: linear-gradient(#021536 0%, #06357e 45%, #1d7fe0 85%, #7fd0ff 100%); overflow: hidden; }
+#op .op-ray { position: absolute; top: -10%; width: 22vw; height: 130%; background: linear-gradient(rgba(190,235,255,.35), rgba(190,235,255,0)); transform-origin: 50% 0; animation: op-ray 3s ease-in-out infinite alternate; }
+@keyframes op-ray { from { transform: rotate(-8deg); opacity: .5; } to { transform: rotate(8deg); opacity: .9; } }
+#op .op-bub { position: absolute; bottom: -8vh; border: 2px solid rgba(220,245,255,.85); background: rgba(190,235,255,.25); border-radius: 50%; }
+#op .op-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 20; }
+/* 戦闘は、映画のように上下を黒くした横長の画面で見せる */
+#op .op-band { position: absolute; left: 50%; top: 50%; width: min(100vw, 133vh); transform: translate(-50%, -50%); overflow: hidden; container-type: size; background: #000; display: none; }
+#op .bbg { position: absolute; inset: 0; background: #06204a url("op-pool.jpg") center bottom / cover no-repeat; image-rendering: pixelated; }
+#op .stage { position: absolute; inset: 0; }
+#op .c { position: absolute; transform: translateX(-50%); image-rendering: pixelated; will-change: transform; max-width: none; }
+#op .cutin { position: absolute; inset: 0; background: #ff7a00; clip-path: inset(0 100% 0 0); overflow: hidden; z-index: 10; }
+#op .cutin .c { transform: none; }
+#op .hw { position: absolute; width: 0; height: 0; will-change: transform; }
+#op .hf { position: absolute; bottom: 0; image-rendering: pixelated; max-width: none; display: none; }
+#op .cutin .spd { position: absolute; inset: 0; background: repeating-linear-gradient(100deg, rgba(255,255,255,0) 0 18px, rgba(255,230,150,.35) 18px 26px); }
+#op .sp { position: absolute; width: 8px; height: 8px; pointer-events: none; z-index: 8; }
+/* タイトル(ポケモン ファイアレッド風) */
+#op .tt { position: absolute; inset: 0; display: none; }
+#op .tt-top, #op .tt-bot { position: absolute; left: 0; right: 0; z-index: 3; display: flex; align-items: center; justify-content: center; text-align: center; }
+#op .tt-top { top: 0; height: max(44px, 7vh); background: #ee4a1c; border-bottom: 3px solid #7a1a00; font-size: clamp(1rem, 4.4vw, 1.5rem); text-shadow: 0 2px 0 #7a1a00; transform: translateY(-110%); }
+#op .tt-top span { animation: op-blink 1.1s steps(2, end) infinite; }
+#op .tt-bot { bottom: 0; height: max(34px, 5vh); background: #000; font-size: clamp(.65rem, 2.8vw, .9rem); color: #cfd8ee; transform: translateY(110%); padding: 0 8px; }
+#op .tt-field { position: absolute; left: 0; right: 0; top: max(44px, 7vh); bottom: max(34px, 5vh); background: #000; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#op .tt-bg { position: absolute; inset: 0; background: #2ba58f repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 6px, rgba(255,255,255,0) 6px 18px); clip-path: inset(0 100% 0 0); }
+#op .tt-drag { position: relative; flex: none; width: min(98vw, 46vh * 1.433, 820px); aspect-ratio: 672 / 469; opacity: 0; }
+#op .tt-dimg { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: brightness(0); }
+#op .tt-eye { position: absolute; left: 20.4%; top: 54.7%; width: 2.6%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: #fff6a8; box-shadow: 0 0 10px 4px #ffd34d, 0 0 28px 12px rgba(255,200,40,.75); opacity: 0; }
+#op .tt-logo { position: relative; flex: none; width: 100%; margin-top: -2.5vh; text-align: center; opacity: 0; }
+#op .tt-logo .t1, #op .tt-logo .t2 { display: block; font-weight: 400; white-space: nowrap; line-height: 1.12; }
+#op .tt-logo .t1 { font-size: min(11.6vw, 5.4rem); color: #ffe14d; -webkit-text-stroke: 3px #0a1a5c; paint-order: stroke fill; text-shadow: 0 4px 0 #0a1a5c, 0 0 14px rgba(255,255,255,.7); }
+#op .tt-logo .t2 { font-size: min(16vw, 7rem); color: #fff; -webkit-text-stroke: 4px #0a1a5c; paint-order: stroke fill; text-shadow: 0 5px 0 #0a1a5c, 0 0 14px rgba(255,255,255,.7); }
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) {
+  #op .tt-drag { width: auto; height: 52%; }
+  #op .tt-logo { margin-top: -1.5vh; }
+  #op .tt-logo .t1 { font-size: min(5.6vw, 8.5vh, 4.6rem); }
+  #op .tt-logo .t2 { font-size: min(8vw, 12vh, 6.4rem); }
+}
+@keyframes op-blink { 50% { opacity: 0; } }
+#op .op-btn { position: absolute; top: 10px; z-index: 30; font: inherit; font-size: .95rem; color: #fff; background: rgba(5,6,13,.7); border: 2px solid #eef2fa; border-radius: 4px; padding: 6px 12px; min-height: 40px; cursor: pointer; }
+#op .op-skip { right: 10px; }
+#op .op-snd { left: 10px; }
+@media (prefers-reduced-motion: reduce) { #op .op-ray, #op .tt-top span { animation: none; } }
+
+</style>
+
+<main class="wrap">
+  <header>
+    <p class="kicker">クイズRPG</p>
+    <h1><span class="ln">うきうきわくわく</span><br><span class="ln">クエスト</span></h1>
+    <p class="lede">HPは5つ。回復はありません。中級と上級をクリアして、レート戦でレートを競おう。</p>
+  </header>
+
+
+  <section id="play" aria-live="polite" hidden></section>
+
+  <section class="board" id="board" aria-labelledby="board-title" hidden>
+    <div class="board-head">
+      <h2 id="board-title">レート戦ランキング</h2>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="tabs" role="group" aria-label="ランキングの種類">
+      <button type="button" class="tab" id="tab-rate" aria-pressed="true">レート</button>
+      <button type="button" class="tab" id="tab-streak" aria-pressed="false">連続正解</button>
+    </div>
+    <ol class="rows" id="rows"></ol>
+    <p class="empty" id="empty">ランキングを読み込んでいます。</p>
+  </section>
+
+  <p class="notice" id="notice">※本ゲームは、公開情報のみを使用して作成されています。社内機密情報および未公開情報は一切含まれておりません。</p>
+</main>
+
+<div id="op" hidden aria-label="オープニング"></div>
+
+<script>
+// ================= 設定と問題データ(サンプル。差し替えるときはここだけ変えます) =================
+const HP_MAX = 5;
+const RATE_HP = 3; // レート戦のはじめの体力
+function maxHp(mode) { return mode === "rate" ? RATE_HP : HP_MAX; }
+const RATE_PER_CORRECT = 100; // レート戦で、1問正解ごとに上がるレート
+// 入場の合言葉(SHA-256)。ページを開けた人は中身を読めるので、簡易の入口です。
+const PW_HASH = "425e046ba71f4ae2f74835d829b3eab8c5315956c95209c78924f2558c3a49a2";
+
+// 背景の配色(ダンジョンの色)
+const PALS = [
+  { ceil: "#2b3f7a", wa: "#e8eef6", wb: "#c9d3e2", fa: "#8c9a7a", fb: "#7b8a6b", back: "#dfe6f0", door: "#7a8798", light: "#fff6c8", rail: "#2f58c8" },
+  null,
+  { ceil: "#2c2250", wa: "#c6b8e0", wb: "#ad9ccf", fa: "#5a4b86", fb: "#4d4075", back: "#b7a8d6", door: "#382d63", light: "#ffe8ff", rail: "#8a5cd8" },
+  { ceil: "#4a2a1e", wa: "#e0b89a", wb: "#c9a082", fa: "#7a4a36", fb: "#6b3f2d", back: "#d4ab8d", door: "#4a2f22", light: "#fff0c0", rail: "#d8683c" },
+  { ceil: "#0e0e14", wa: "#2d2d3a", wb: "#25252f", fa: "#4a4430", fb: "#3e392a", back: "#202029", door: "#8a6d1c", light: "#ffd34d", rail: "#c9a227" }
+];
+// ジャンル。中級をクリアすると上級、上級をクリアするとレート戦が解放されます。
+const RATE_BG_N = 7; // レート戦の背景の数。敵を5体倒すごとに、順番に切り替わる
+const RATE_BG_EVERY = 5;
+const MODES = {
+  chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 8], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
+  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18], next: "rate", desc: "全8問 / クリアでレート戦が解放" },
+  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" }
+}; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
+// 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
+const ENEMIES = [
+  { src: "enemy1.png", h: 49, ar: 1.053, alt: "一つ目の敵" },
+  { src: "enemy2.png", h: 43, ar: 1.847, alt: "しま模様の敵" },
+  { src: "enemy3.png", h: 56, ar: 0.683, alt: "青い頭の人" },
+  { src: "enemy4.png", h: 49, ar: 1.083, alt: "ハスキー犬" },
+  { src: "enemy5.png", h: 52, ar: 1.169, alt: "床みがき機の敵" },
+  { src: "enemy6.png", h: 50, ar: 1.283, alt: "赤いメガホンの敵" },
+  { src: "enemy7.png", h: 54, ar: 0.881, alt: "ピンクの積み重なった敵" },
+  { src: "enemy8.png", h: 40, ar: 2.025, alt: "赤い机の敵" },
+  { src: "enemy9.png", h: 58, ar: 0.933, alt: "青い監視台の敵" },
+  { src: "nd-idle.png", h: 50, ar: 0.758, alt: "ヌードルモンスター", tag: "裏ボス", where: "【裏ボス】レート戦で、自分の体力が1になったとき(1回だけ)" },
+  { src: "ij-oji.png", h: 54, ar: 0.6, alt: "イタズラおじさん", tag: "特別な敵", where: "【イベント戦】上級・レート戦の途中。ボールを投げて登場し、エビサンダルを呼ぶ" },
+  { src: "ij-ebi.png", h: 36, ar: 1.746, alt: "エビサンダル", tag: "おじさんの手下", where: "【イベント戦】イタズラおじさんに呼び出される。倒すとおじさんと勝負" },
+  { src: "enemy-boss1.png", h: 64, ar: 0.463, alt: "銅像の敵", tag: "中級ボス", where: "【ボス】中級の最後の3問。体力3(3回正解で撃破)" },
+  { src: "enemy10.png", h: 36, ar: 2.054, alt: "ベンチの敵" },
+  { src: "enemy11.png", h: 56, ar: 0.532, alt: "マネキンの敵" },
+  { src: "enemy12.png", h: 50, ar: 0.797, alt: "キューピー人形の敵" },
+  { src: "enemy13.png", h: 50, ar: 1.092, alt: "時計の敵" },
+  { src: "enemy14.png", h: 58, ar: 0.662, alt: "三角コーンの敵" },
+  { src: "enemy15.png", h: 40, ar: 1.559, alt: "ブラックバスの敵" },
+  { src: "enemy16.png", h: 58, ar: 1.415, alt: "コースロープドラゴン", tag: "ラスボス", where: "【ラスボス】レート戦の最後。体力5(5回正解で撃破)。倒すまで問題が続く" },
+  { src: "enemy17.png", h: 60, ar: 0.384, alt: "看板ゾンビ", tag: "激レア", where: "【激レア】どの挑戦でも、ごくまれに現れる(約250問に1回)。1回の挑戦で出るのは1回まで。出会えたらラッキー!" }
+]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
+function enemyIdx(mode) {
+  const m = MODES[mode];
+  if (!m) return 0; // チュートリアル
+  return m.enemies[Math.floor(Math.random() * m.enemies.length)];
+}
+const RARE_EN = 20, RARE_P = 0.004; // 激レアの敵(看板ゾンビ): 1問ごとにこの確率で出る(約250問に1回)。1回の挑戦で1回まで
+const isBossEn = (e) => e === 12 || e === 9 || e === 19; // 体力ゲージのある敵(中級ボス / 裏ボス / ラスボス)
+const MODE_KEYS = ["chu", "jo", "rate"];
+
+// c: 選択肢 / a: 正解の位置(0始まり) / e: 解説 / tip: チュートリアルの説明
+const TUT = [
+  { q: "LGの第一優先はなに?", c: ["安全", "清潔", "コミュニケーション", "安心"], a: 0, e: "解説マニュアルをもう一度読みましょう" },
+  { q: "非常口は全部で何個?", c: ["7個", "6個", "3個", "8個"], a: 0, e: "男子更衣室、女子更衣室、特別室、1コース奥、器具庫、監視室、救護室、があります。" }
+];
+const BASE = {
+  chu: [
+    { q: "日本の国鳥はどれ?", c: ["ツル", "キジ", "スズメ", "ウグイス"], a: 1, e: "日本の国鳥はキジです。" },
+    { q: "富士山の標高に最も近いのはどれ?", c: ["2,776m", "3,776m", "4,776m", "5,776m"], a: 1, e: "富士山の標高は3,776mで、日本一高い山です。" },
+    { q: "水の化学式はどれ?", c: ["CO₂", "O₂", "H₂O", "NaCl"], a: 2, e: "水は水素原子2個と酸素原子1個からできています。" },
+    { q: "日本で面積が最も大きい都道府県はどれ?", c: ["北海道", "岩手県", "長野県", "新潟県"], a: 0, e: "北海道は約8.3万km²で、2位の岩手県の約5倍あります。" },
+    { q: "太陽系で最も大きい惑星はどれ?", c: ["土星", "木星", "天王星", "海王星"], a: 1, e: "木星の直径は地球の約11倍です。" },
+    { q: "元素記号「Au」は何を表す?", c: ["銀", "アルミニウム", "金", "鉛"], a: 2, e: "Auはラテン語の aurum(金)に由来します。" },
+    { q: "日本で、1年のうち昼が最も長い日はどれ?", c: ["春分の日", "夏至", "秋分の日", "冬至"], a: 1, e: "夏至は6月21日ごろ。北半球では昼の長さが最大になります。" },
+    { q: "1バイトは何ビット?", c: ["4ビット", "8ビット", "16ビット", "32ビット"], a: 1, e: "1バイトは8ビットで、256通りの値を表せます。" },
+    { q: "『源氏物語』の作者は誰?", c: ["清少納言", "和泉式部", "紫式部", "菅原孝標女"], a: 2, e: "紫式部が平安時代中期に書いた長編物語です。" }
+  ],
+  jo: [
+    { q: "光が1秒間に進む距離に最も近いのはどれ?", c: ["約3万km", "約30万km", "約300万km", "約3億km"], a: 1, e: "光は真空中で秒速約30万km。1秒で地球を7周半します。" },
+    { q: "日本の標準時の基準になっている経線は?", c: ["東経120度", "東経135度", "東経140度", "東経150度"], a: 1, e: "東経135度の経線は兵庫県明石市を通ります。" },
+    { q: "人の体で最も大きい臓器はどれ?", c: ["肝臓", "小腸", "肺", "皮膚"], a: 3, e: "皮膚は面積が成人で約1.6m²あり、臓器として最大です。" },
+    { q: "DNAを作る塩基は何種類?", c: ["2種類", "3種類", "4種類", "5種類"], a: 2, e: "アデニン、チミン、グアニン、シトシンの4種類です。" },
+    { q: "海に面していない県はいくつある?", c: ["6県", "7県", "8県", "9県"], a: 2, e: "栃木・群馬・埼玉・山梨・長野・岐阜・滋賀・奈良の8県です。" },
+    { q: "素数でないのはどれ?", c: ["41", "47", "51", "53"], a: 2, e: "51は3×17で割り切れるので、素数ではありません。" }
+  ]
+};
+const LABELS = ["A", "B", "C", "D"];
+// 回復キャラ(AED): レート戦で体力が0になったとき1回だけ現れる。蘇生問題に3問正解すると体力が2回復。1問でも間違えるとゲームオーバー
+const AEDQ = [
+  { q: "傷病者発見!次にやるべき事は?", c: ["周囲の安全確認", "全身の観察", "大きな声で助けを求める", "呼吸の確認"], a: 0, e: "まず初めは周囲の安全確認をして、傷病者及び自分自身の安全確保をします" },
+  { q: "傷病者発見!周囲の安全確認、全身観察を終えました。次は何をする?", c: ["反応の確認", "大きな声で助けを求める", "呼吸の確認", "AEDを使う"], a: 0, e: "全身の観察後、大出血等がなければ、反応確認しましょう。両肩を叩き3回程「聞こえますか?」と声掛けをします。" },
+  { q: "傷病者発見!呼吸の確認をした所、普段通りの呼吸がありました。次は何をしますか?", c: ["気道確保、回復体位にして観察続ける", "直ちに胸骨圧迫30回、気道確保人工呼吸", "AED装着", "そのまま救急隊の到着を待つ"], a: 0, e: "回復体位とは、呼びかけなどに反応はないものの、普段どおりの呼吸をしている人に行う横向きの姿勢です。救急車を待つ間に、嘔吐物や舌の落ち込みによる窒息を防ぎ、気道を確保することを目的としています。" }
+];
+const AED_HEAL = 2; // 蘇生に成功したときの回復量
+const AED_FR = {"ap1": ["aed-ap1.png", 268, 378], "ap2": ["aed-ap2.png", 276, 296], "ap3": ["aed-ap3.png", 266, 270], "ap4": ["aed-ap4.png", 248, 304], "id1": ["aed-id1.png", 238, 226], "id2": ["aed-id2.png", 234, 224], "id3": ["aed-id3.png", 256, 222], "id4": ["aed-id4.png", 218, 222], "joy": ["aed-joy.png", 376, 294], "dmg": ["aed-dmg.png", 282, 250]};
+const TOP_N = 30;
+
+// ================= 共通 =================
+const $ = (s) => document.querySelector(s);
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+function shuffle(a) {
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+let db = null, uid = null, canWrite = null;
+let rows = [];
+let boardState = "loading";
+let rankBy = "rate";
+let topRating = 1;
+// ================= BGM / 効果音(Web Audio。外部ファイルなし) =================
+const Bgm = (function () {
+  let ctx = null, master = null, mus = null, timer = null, step = 0, nextT = 0, started = false, hushed = false, ducked = false, noiseBuf = null;
+  let on = true, vol = 1;
+  try { on = localStorage.getItem("quiz-bgm") !== "off"; } catch (e) {}
+  try { const v = localStorage.getItem("quiz-bgm-vol"); if (v != null && v !== "" && isFinite(+v)) vol = Math.max(0, Math.min(1, +v / 100)); } catch (e) {}
+  const STEP = 0.3; // 8分音符の長さ(秒)。ゆったりとした壮大なテンポ
+  const mtof = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  // ニ短調の、英雄的な進行: Dm - B♭ - F - C | Dm - B♭ - Gm - A
+  const CH = [[50, 57, 62, 65], [46, 58, 62, 65], [53, 57, 60, 65], [48, 55, 60, 64], [50, 57, 62, 65], [46, 58, 62, 65], [43, 55, 58, 62], [45, 57, 61, 64]];
+  const BASS = [38, 34, 41, 36, 38, 34, 43, 33];
+  const MEL = [
+    [74, -1, -1, 77, 81, -1, -1, -1], [82, -1, 81, 79, 77, -1, -1, -1],
+    [77, -1, -1, 81, 84, -1, -1, -1], [84, -1, 83, 81, 79, -1, 76, -1],
+    [86, -1, -1, 84, 81, -1, 77, -1], [82, -1, -1, 81, 79, -1, 77, -1],
+    [79, -1, 82, 86, -1, -1, 84, 82], [81, -1, 85, -1, 88, -1, 85, 81]
+  ];
+  function level() { return on ? 0.55 : 0; }
+  function musLevel() { return hushed || scene === "dungeon" ? 0 : vol; }
+  // ---- BGM本体: 音声ファイル(MP3)。読み込めなかったときだけ、自動演奏で代用する ----
+  // 曲は2つ: main=オープニング/ホーム、dungeon=ダンジョン(クイズ中)。場面で切りかえる(クロスフェード)
+  let scene = "main", want = "main", swTimer = null, audOk = true, dgOk = true, hmOk = true, audTimer = null, synthOn = false;
+  const T = { main: { src: "op-bgm.mp3", a: null, v: 0, fresh: true }, dungeon: { src: "dungeon-bgm.mp3", a: null, v: 0, fresh: true }, home: { src: "home-bgm.mp3", a: null, v: 0, fresh: true } };
+  function audTarget(k) { const sc = (scene === "dungeon" && !dgOk) || (scene === "home" && !hmOk) ? "main" : scene; return on && !hushed && sc === k ? 0.8 * vol : 0; }
+  function audTick() {
+    Object.keys(T).forEach((k) => {
+      const t = T[k]; if (!t.a) return;
+      const tg = audTarget(k);
+      t.v += (tg - t.v) * 0.4; // 切りかえは、すばやく
+      if (Math.abs(tg - t.v) < 0.004) t.v = tg;
+      if (t.v > 0 && t.a.paused) {
+        if (t.fresh) { try { t.a.currentTime = 0; } catch (e) {} t.fresh = false; }
+        t.a.play().catch(() => {});
+      }
+      t.a.volume = Math.max(0, Math.min(1, t.v));
+      if (t.v === 0 && tg === 0 && !t.a.paused) { t.a.pause(); if (k !== "main") t.fresh = true; }
+    });
+  }
+  function startAudio() {
+    if (T.main.a) return;
+    try {
+      Object.keys(T).forEach((k) => {
+        const a = new Audio(T[k].src);
+        a.loop = true; a.preload = "auto"; a.volume = 0;
+        if (k === "main") a.addEventListener("error", () => { audOk = false; T.main.a = null; startSynth(); });
+        if (k === "dungeon") a.addEventListener("error", () => { dgOk = false; });
+        if (k === "home") a.addEventListener("error", () => { hmOk = false; });
+        T[k].a = a;
+        // ジェスチャー中に一度、無音で再生してロックを解除しておく(音量0なので、すぐ止まる)
+        const p = a.play(); if (p && p.catch) p.catch(() => {});
+      });
+      audTimer = setInterval(audTick, 50);
+    } catch (e) { audOk = false; T.main.a = null; startSynth(); }
+  }
+  function startSynth() {
+    if (synthOn || !ensure()) return;
+    synthOn = true; step = 0; nextT = ctx.currentTime + 0.05;
+    timer = setInterval(schedule, 80);
+  }
+  function ensure() {
+    if (ctx) return true;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      ctx = new AC();
+      master = ctx.createGain(); master.gain.value = 0;
+      master.connect(ctx.destination);
+      const len = ctx.sampleRate;
+      noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      // 音楽用のバス。ホールのような残響をつけて、壮大にする
+      mus = ctx.createGain(); mus.gain.value = musLevel();
+      mus.connect(master);
+      const conv = ctx.createConvolver();
+      const il = Math.floor(ctx.sampleRate * 2.4), ib = ctx.createBuffer(2, il, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) { const ch = ib.getChannelData(c); for (let i = 0; i < il; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / il, 2.6); }
+      conv.buffer = ib;
+      const wet = ctx.createGain(); wet.gain.value = 0.42;
+      mus.connect(conv); conv.connect(wet); wet.connect(master);
+      return true;
+    } catch (e) { ctx = null; return false; }
+  }
+  function applyLevel() {
+    if (!ctx) return;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(level(), ctx.currentTime, 0.12);
+    if (mus) { mus.gain.cancelScheduledValues(ctx.currentTime); mus.gain.setTargetAtTime(musLevel(), ctx.currentTime, 0.2); }
+  }
+  function tone(type, f, t, dur, vol, slideTo, dest) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest || master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  // ゆっくり立ち上がる、弦・金管のような音
+  function swell(type, f, t, dur, vol, cutoff, att, dest, vib) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), fl = ctx.createBiquadFilter();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    fl.type = "lowpass"; fl.frequency.setValueAtTime(cutoff * 0.5, t); fl.frequency.linearRampToValueAtTime(cutoff, t + att);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + att);
+    g.gain.setValueAtTime(vol, t + Math.max(att, dur - 0.35));
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    if (vib) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 5.2; lg.gain.value = f * 0.006; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + dur + 0.05); }
+    o.connect(fl); fl.connect(g); g.connect(dest || master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  function timpani(t, vol) {
+    tone("sine", 120, t, 0.5, vol, 48, mus);
+    noise(t, 0.08, vol * 0.5, 500, 200, 0.6, mus);
+  }
+  function noise(t, dur, vol, f0, f1, q, dest) {
+    const s = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf; s.loop = true;
+    fl.type = "bandpass"; fl.Q.value = q || 1;
+    fl.frequency.setValueAtTime(f0, t);
+    fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.2, dur / 3));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(fl); fl.connect(g); g.connect(dest || master);
+    s.start(t); s.stop(t + dur + 0.05);
+  }
+  function schedule() {
+    if (!ctx) return;
+    while (nextT < ctx.currentTime + 0.35) {
+      const bar = Math.floor(step / 8) % 8, k = step % 8, c = CH[bar];
+      if (k === 0) {
+        // 和音の弦(小節ぜんたいを、ゆったり鳴らす)
+        c.forEach((n) => { swell("sawtooth", mtof(n), nextT, STEP * 8.2, 0.022, 1100, 0.7, mus); swell("sawtooth", mtof(n) * 1.004, nextT, STEP * 8.2, 0.014, 900, 0.8, mus); });
+        swell("sawtooth", mtof(BASS[bar]), nextT, STEP * 8, 0.1, 380, 0.15, mus);
+        swell("triangle", mtof(BASS[bar] - 12), nextT, STEP * 8, 0.12, 200, 0.1, mus);
+      }
+      // ティンパニ: 1・3拍め、小節の終わりは連打で盛り上げる
+      if (k === 0) timpani(nextT, 0.34);
+      else if (k === 4) timpani(nextT, 0.2);
+      else if (bar % 4 === 3 && k >= 6) timpani(nextT, 0.16 + (k - 6) * 0.05);
+      // 金管のような主旋律
+      const n = MEL[bar][k];
+      if (n > 0) {
+        let len = 1; while (k + len < 8 && MEL[bar][k + len] === -1) len++;
+        swell("sawtooth", mtof(n), nextT, STEP * len * 1.05, 0.06, 2600, 0.07, mus, true);
+        swell("square", mtof(n - 12), nextT, STEP * len * 1.05, 0.03, 1400, 0.09, mus, false);
+      }
+      // 疾走感のあるアルペジオ(控えめ)
+      tone("triangle", mtof(c[[0, 1, 2, 3, 2, 1, 2, 3][k]] + 24), nextT, STEP * 0.7, 0.03, 0, mus);
+      nextT += STEP; step++;
+    }
+  }
+  return {
+    ready: ensure,
+    resume() { if (ensure() && ctx.state === "suspended") ctx.resume().catch(() => {}); applyLevel(); Object.keys(T).forEach((k) => { const t = T[k]; if (t.a && t.v > 0 && t.a.paused) t.a.play().catch(() => {}); }); },
+    start() {
+      if (!ensure()) return;
+      this.resume();
+      if (started) return;
+      started = true;
+      startAudio();
+      applyLevel();
+    },
+    hush(v) { hushed = !!v; applyLevel(); },
+    scene(n) {
+      if (want === n) return;
+      want = n;
+      if (!started) { scene = n; applyLevel(); return; }
+      this.sfx("pi"); // 選んだ瞬間に「ピッ」。前の曲はすぐ止めて、少しだけ間をおいて次の曲を始める
+      scene = "none"; applyLevel();
+      clearTimeout(swTimer);
+      swTimer = setTimeout(() => { scene = want; applyLevel(); }, 170);
+    },
+    toggle() { on = !on; try { localStorage.setItem("quiz-bgm", on ? "on" : "off"); } catch (e) {} this.resume(); return on; },
+    isOn() { return on; },
+    getVol() { return Math.round(vol * 100); },
+    setVol(p) { vol = Math.max(0, Math.min(1, p / 100)); try { localStorage.setItem("quiz-bgm-vol", String(Math.round(vol * 100))); } catch (e) {} applyLevel(); },
+    sfx(kind) {
+      if (!ensure() || !on) return;
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const t = ctx.currentTime + 0.02;
+      if (kind === "water") { noise(t, 2.8, 0.5, 250, 2200, 0.8); noise(t + 0.2, 2.4, 0.22, 900, 3500, 2); }
+      else if (kind === "bubble") { const f = 300 + Math.random() * 500; tone("sine", f, t, 0.12, 0.34, f * 2.2); tone("sine", f * 1.5, t + 0.07, 0.1, 0.22, f * 3); if (Math.random() < .6) tone("sine", f * 1.2, t + 0.15, 0.09, 0.2, f * 2.4); }
+      else if (kind === "splash") { noise(t, 0.7, 0.55, 3000, 500, 0.6); }
+      else if (kind === "hit") { tone("square", 340, t, 0.14, 0.12, 70); noise(t, 0.1, 0.18, 2500, 900, 0.8); }
+      else if (kind === "hurt") { tone("sawtooth", 220, t, 0.2, 0.1, 60); noise(t, 0.12, 0.12, 1500, 500, 0.8); }
+      else if (kind === "win") { [72, 76, 79, 84, 79, 84].forEach((n, i) => tone("square", mtof(n), t + i * 0.1, i > 3 ? 0.35 : 0.14, 0.09)); }
+      else if (kind === "chime") { [88, 95, 100].forEach((n, i) => { tone("triangle", mtof(n), t + i * 0.12, 0.9, 0.1); tone("sine", mtof(n + 12), t + i * 0.12, 0.7, 0.05); }); }
+      else if (kind === "rumble") { tone("sine", 42, t, 3.4, 0.45, 30); tone("sawtooth", 55, t, 3.4, 0.05, 40); noise(t, 3.4, 0.18, 120, 70, 0.8); }
+      else if (kind === "thump") { tone("sine", 78, t, 0.22, 0.6, 42); tone("sine", 70, t + 0.16, 0.22, 0.45, 38); }
+      else if (kind === "boom") { tone("sine", 90, t, 0.9, 0.5, 38); noise(t, 0.5, 0.4, 300, 80, 0.7); }
+      else if (kind === "whoosh") { noise(t, 0.4, 0.4, 500, 4000, 1.2); }
+      else if (kind === "pi") { tone("square", 1960, t, 0.09, 0.16); tone("square", 1960, t + 0.09, 0.05, 0.0001); }
+      else if (kind === "scene") { noise(t, 0.55, 0.4, 300, 5000, 1.2); [84, 88, 91].forEach((n, i) => tone("triangle", mtof(n), t + 0.08 + i * 0.09, 0.5, 0.09)); }
+      else if (kind === "pop") { tone("sine", 700, t, 0.1, 0.28, 180); tone("sine", 1050, t + 0.05, 0.1, 0.18, 300); }
+      else if (kind === "throw") { noise(t, 0.38, 0.4, 400, 3600, 1); tone("sine", 200, t, 0.32, 0.22, 950); }
+      else if (kind === "ballhit") { tone("sine", 150, t, 0.5, 0.55, 40); noise(t, 0.28, 0.42, 2600, 300, 0.7); tone("square", 520, t, 0.1, 0.1, 100); }
+      else if (kind === "swing") { noise(t, 0.24, 0.4, 800, 5200, 1.4); tone("triangle", 260, t, 0.18, 0.1, 90); }
+      else if (kind === "slash") { noise(t, 0.2, 0.36, 9000, 1800, 2); tone("sawtooth", 1300, t, 0.12, 0.08, 300); }
+      else if (kind === "claw") { for (let k = 0; k < 2; k++) { noise(t + k * 0.06, 0.1, 0.32, 7500, 2500, 3); tone("square", 2400, t + k * 0.06, 0.05, 0.05, 1200); } }
+      else if (kind === "smash") { tone("sine", 110, t, 0.6, 0.6, 35); noise(t, 0.42, 0.5, 1800, 200, 0.6); tone("square", 260, t, 0.12, 0.12, 60); }
+      else if (kind === "pounce") { noise(t, 0.42, 0.4, 600, 2600, 0.9); tone("sawtooth", 180, t, 0.36, 0.1, 430); }
+      else if (kind === "summon") { [60, 64, 67, 72, 76].forEach((n, i) => tone("triangle", mtof(n), t + i * 0.11, 0.4, 0.1)); noise(t + 0.3, 0.8, 0.32, 3000, 600, 0.6); }
+      else if (kind === "tap") { tone("square", 880, t, 0.08, 0.06); tone("square", 1320, t + 0.06, 0.12, 0.06); }
+    }
+  };
+})();
+["pointerdown", "touchend", "click", "keydown"].forEach((ev) => document.addEventListener(ev, () => { Bgm.resume(); }, { passive: true }));
+
+let myName = "", tutorialDone = false;
+let prog = { chu: false, jo: false }; // 中級・上級のクリア状況
+let view = "home"; // home | settings | qadd | name | zukan (ゲーム中以外の画面)
+let pendingMode = null; // 名前を決めたあとに始めるジャンル
+let extraQ = [], pendingDel = null, qEditHook = null;
+let G = null; // 進行中のゲーム。null ならホーム系の画面
+try { myName = localStorage.getItem("quiz-name") || ""; } catch (e) {}
+try { tutorialDone = localStorage.getItem("quiz-tut") === "1"; } catch (e) {}
+try {
+  const p = JSON.parse(localStorage.getItem("quiz-prog") || "{}");
+  prog.chu = !!p.chu; prog.jo = !!p.jo;
+} catch (e) {}
+
+const TITLES = { 1: "素人ライフガード", 2: "3級ライフガード", 3: "2級ライフガード", 4: "1級ライフガード", 5: "世界一すんごいライフガード" };
+const TOP_TIER = 5;
+// レート戦1回分の称号: 到達した問題数・クリア・残りライフ・全問正解で決まる
+function runTier(run) {
+  if (!run || run.mode !== "rate") return 0;
+  const len = run.qs.length;
+  const reached = run.cleared ? len : Math.min(len, run.qi + 1);
+  if (run.cleared) {
+    if (run.answered > 0 && run.answered === run.correct) return 5; // 1問も間違えずにクリア
+    if (run.hp >= 2) return 4; // 体力3(最大)はノーミスなので、残りは2か1
+    return 3;
+  }
+  if (reached >= 40) return 2;
+  if (reached >= 25) return 1;
+  return 0;
+}
+// 保存値は新称号=20+段階(旧称号と区別するため)
+function tierOf(r) { const v = (r && r.titleTier) || 0; return v >= 20 ? v - 20 : 0; }
+function myTier() { const me = uid ? rows.find((r) => r.id === uid) : null; return Math.max(tierOf(me), localTier); }
+let localTier = 0;
+function ratingOf(r) { return (r.best || 0) * RATE_PER_CORRECT; } // 1回の挑戦での最高正解数 × 100
+function updateMyRate() {
+  const p = document.getElementById("myrate");
+  if (!p) return;
+  const me = uid ? rows.find((r) => r.id === uid) : null;
+  p.hidden = !me;
+  if (me) p.textContent = "あなたのレート " + ratingOf(me).toLocaleString("en-US");
+}
+function canSave() { return !!(db && uid && canWrite !== false); }
+function noteText() {
+  if (!db) return "ランキングに接続できませんでした。レート戦の結果は登録されません。";
+  if (!uid) return "この表示ではランキングに登録できません。";
+  if (canWrite === false) return "閲覧のみの権限のため、レート戦の結果はランキングに登録されません。参加するには編集権限(Contributor)で開いてください。";
+  return "";
+}
+function isUnlocked(mode) {
+  if (mode === "chu") return tutorialDone;
+  if (mode === "jo") return prog.chu;
+  return prog.jo;
+}
+function lockText(mode) {
+  if (mode === "chu") return "チュートリアルを終えると解放されます。";
+  if (mode === "jo") return "中級をクリアすると解放されます。";
+  return "上級をクリアすると解放されます。";
+}
+
+// ---- 追加された問題 ----
+function normQ(x) {
+  let g = x.genre;
+  if (!MODES[g]) g = Number.isInteger(x.stage) ? (x.stage <= 2 ? "chu" : "jo") : null;
+  if (!g || typeof x.q !== "string" || !Array.isArray(x.c) || x.c.length !== 4 || !x.c.every((c) => typeof c === "string") ||
+      !Number.isInteger(x.a) || x.a < 0 || x.a > 3) return null;
+  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", at: x.at || 0 };
+}
+// ---- 最初から入っている問題(外部公開版)。Firebase側の同じIDの問題があれば、そちらで上書きされる ----
+const SEED_Q = [{"a": 0, "at": 1792140329470, "by": "seed", "c": ["4個", "3個", "2個", "5個"], "e": "", "genre": "chu", "q": "プールサイドに消火栓は全部で何個ある？", "id": "chu01"}, {"a": 0, "at": 1792140329471, "by": "seed", "c": ["1.25m", "1.35m", "1.1m", "1m"], "e": "", "genre": "chu", "q": "大プールで最も深い水深は何m？", "id": "chu02"}, {"a": 0, "at": 1792140329472, "by": "seed", "c": ["0.95m", "1m", "0.85m", "0.75m"], "e": "", "genre": "chu", "q": "大プールで最も水深が浅い水深は何m？", "id": "chu03"}, {"a": 0, "at": 1792140329473, "by": "seed", "c": ["20m", "25m", "18m", "30m"], "e": "", "genre": "chu", "q": "大プールの横幅は何m？", "id": "chu04"}, {"a": 0, "at": 1792140329474, "by": "seed", "c": ["6m", "9m", "10m", "7m"], "e": "", "genre": "chu", "q": "幼Pの横幅は何m？", "id": "chu05"}, {"a": 0, "at": 1792140329475, "by": "seed", "c": ["0.35m", "0.4m", "0.3m", "0.45m"], "e": "", "genre": "chu", "q": "幼Pで最も浅いのは水深何m", "id": "chu06"}, {"a": 0, "at": 1792140329476, "by": "seed", "c": ["9時30分", "8時30分", "9時00分", "8時00分"], "e": "", "genre": "chu", "q": "プール遊泳開始は何時から？", "id": "chu07"}, {"a": 0, "at": 1792140329477, "by": "seed", "c": ["9時15分", "9時20分", "9時00分", "9時30分"], "e": "", "genre": "chu", "q": "プール入場開始時間は？", "id": "chu08"}, {"a": 0, "at": 1792140329478, "by": "seed", "c": ["20時30分", "20時45分", "20時00分", "21時00分"], "e": "", "genre": "chu", "q": "プール遊泳終了時間は？", "id": "chu09"}, {"a": 0, "at": 1792140329479, "by": "seed", "c": ["20時45分", "20時30分", "20時00分", "21時00分"], "e": "", "genre": "chu", "q": "ロッカー終了時間は？", "id": "chu10"}, {"a": 0, "at": 1792140329480, "by": "seed", "c": ["ヘルパー", "ビート板", "プルブイ", "ラッシュガード"], "e": "完泳コースは25m泳げる前提のコースです。補助具の使用はできません。", "genre": "chu", "q": "完泳コースで使えない物は？", "id": "chu11"}, {"a": 0, "at": 1792140329481, "by": "seed", "c": ["炭酸飲料", "アルコール類", "ウエットスーツ", "レジャーシート"], "e": "", "genre": "chu", "q": "持ち込み禁止ではない物はどれ？", "id": "chu12"}, {"a": 0, "at": 1792140329482, "by": "seed", "c": ["550円", "500円", "450円", "400円"], "e": "", "genre": "chu", "q": "大人の入場料はいくら？", "id": "chu13"}, {"a": 0, "at": 1792140329483, "by": "seed", "c": ["100円", "400円", "200円", "300円"], "e": "", "genre": "chu", "q": "子供の入場料はいくら？", "id": "chu14"}, {"a": 0, "at": 1792140329484, "by": "seed", "c": ["3人まで", "2人まで", "4人まで", "制限なし"], "e": "", "genre": "chu", "q": "保護者1人が引率できる小学3年生以下の子どもの人数は何人までですか？", "id": "chu15"}, {"a": 0, "at": 1792140329485, "by": "seed", "c": ["足立区内在住または在勤で証明書を提示する", "年齢を自己申告する", "付き添いと来館する", "会員登録する"], "e": "", "genre": "chu", "q": "65歳以上で無料利用するために必要な条件はどれですか？", "id": "chu16"}, {"a": 0, "at": 1792140329486, "by": "seed", "c": ["1人", "2人", "3人", "制限なし"], "e": "", "genre": "chu", "q": "障がい者に介助者がつく場合、無料となる介助者は何人までですか？", "id": "chu17"}, {"a": 0, "at": 1792140329487, "by": "seed", "c": ["利用できない", "利用できる", "保護者同伴なら利用できる", "午前中のみ利用できる"], "e": "", "genre": "chu", "q": "トレーニングパンツ（オムツ）を着用している2歳児は利用できますか？", "id": "chu18"}, {"a": 0, "at": 1792140329488, "by": "seed", "c": ["毎月第3土曜日", "毎月第2土曜日", "毎月第3日曜日", "毎月第2日曜日"], "e": "", "genre": "chu", "q": "無料公開日はいつ？", "id": "chu19"}, {"a": 0, "at": 1792140329489, "by": "seed", "c": ["ラッシュガードの着用", "医師の診断書", "専用許可証", "長袖シャツの着用"], "e": "", "genre": "chu", "q": "刺青やタトゥーがある人が利用する際に求められるものは何ですか？", "id": "chu20"}, {"a": 0, "at": 1792140329490, "by": "seed", "c": ["スマートフォン", "浮き輪", "ペットボトル", "水泳用ゴーグル"], "e": "", "genre": "chu", "q": "施設内への持ち込みが禁止されているものはどれですか？", "id": "chu21"}, {"a": 0, "at": 1792140329491, "by": "seed", "c": ["水泳用ゴーグル", "足ひれ", "シュノーケル", "ゴムボート"], "e": "", "genre": "chu", "q": "次のうち使用が認められているものはどれですか？", "id": "chu22"}, {"a": 0, "at": 1792140329492, "by": "seed", "c": ["ペットボトル", "缶コーヒー", "紙パックジュース", "アルミボトル飲料"], "e": "", "genre": "chu", "q": "飲み物として持ち込み可能なものはどれですか？", "id": "chu23"}, {"a": 0, "at": 1792140329493, "by": "seed", "c": ["時計の着用", "水泳帽子の着用", "水着の着用", "ゴーグルの着用"], "e": "", "genre": "chu", "q": "次のうち遊泳中に禁止されているものはどれですか？", "id": "chu24"}, {"a": 0, "at": 1792140329494, "by": "seed", "c": ["利用できない", "利用できる", "深いプールのみ利用不可", "保護者へ電話すれば利用可能"], "e": "", "genre": "chu", "q": "17時30分以降の中学生が単独で来館した場合どうなりますか？", "id": "chu25"}, {"a": 0, "at": 1792140329495, "by": "seed", "c": ["食事", "水分補給", "休憩", "シャワーのみの利用"], "e": "", "genre": "chu", "q": "次のうちプール内で認められていない行為はどれですか？", "id": "chu26"}, {"a": 0, "at": 1792140329496, "by": "seed", "c": ["入場を断ることがある", "追加料金を徴収する", "再入場券を渡す", "子どもを優先入場させる"], "e": "", "genre": "chu", "q": "満員の場合、施設側はどのような対応を取ることがありますか？", "id": "chu27"}, {"a": 0, "at": 1792140329497, "by": "seed", "c": ["おぼれる真似", "平泳ぎ", "水中歩行", "休憩"], "e": "", "genre": "chu", "q": "プール内で禁止されている危険行為はどれですか？", "id": "chu28"}, {"a": 0, "at": 1792140329498, "by": "seed", "c": ["禁止されている", "フラッシュなしなら可能", "保護者のみ可能", "スマートフォンのみ可能"], "e": "", "genre": "chu", "q": "プール内での撮影について正しいものはどれですか？", "id": "chu29"}, {"a": 0, "at": 1792140329499, "by": "seed", "c": ["浮き輪", "エアマット", "ビーチボール", "シュノーケル"], "e": "浮き輪の持ち込みは可能ですが、足付きや紐付きは使用出来ません。", "genre": "chu", "q": "次のうち持ち込み可能なものはどれですか？", "id": "chu30"}, {"a": 0, "at": 1792140329500, "by": "seed", "c": ["水着と水泳帽子", "ライフジャケット", "ゴーグル", "ラッシュガード"], "e": "", "genre": "chu", "q": "保護者も着用しなければならないものはどれですか？", "id": "chu31"}, {"a": 0, "at": 1792140329501, "by": "seed", "c": ["規則上認められない", "問題なく利用できる", "17時30分まで利用可能", "割引料金になる"], "e": "", "genre": "chu", "q": "高校生以上の保護者1人が4人の小学3年生以下を引率した場合どうなりますか？", "id": "chu32"}, {"a": 0, "at": 1792140329502, "by": "seed", "c": ["65歳以上の足立区内在住・在勤者", "小学生", "高校生", "保護者"], "e": "", "genre": "chu", "q": "次のうち無料利用のために証明書提示が必要な対象はどれですか？", "id": "chu33"}, {"a": 0, "at": 1792140329503, "by": "seed", "c": ["障害者手帳等の提示", "健康保険証のみ", "学生証", "印鑑"], "e": "", "genre": "chu", "q": "障がい者が無料利用する際に必要なものは何ですか？", "id": "chu34"}, {"a": 0, "at": 1792140329504, "by": "seed", "c": ["1人", "2人", "0人", "全員"], "e": "", "genre": "chu", "q": "障がい者の介助者が2人いる場合、無料となる介助者は何人ですか？", "id": "chu35"}, {"a": 0, "at": 1792140329505, "by": "seed", "c": ["どなたでも無料", "子どものみ無料", "高齢者のみ無料", "利用中止"], "e": "", "genre": "chu", "q": "都民の日および区民の日はどうなりますか？", "id": "chu36"}, {"a": 0, "at": 1792140329506, "by": "seed", "c": ["水着と水泳帽子", "水着のみ", "水泳帽子のみ", "私服"], "e": "", "genre": "chu", "q": "プール利用時に保護者が着用しなければならないものはどれですか？", "id": "chu37"}, {"a": 0, "at": 1792140329507, "by": "seed", "c": ["刺青やタトゥーのある方", "小学生", "高齢者", "初回利用者"], "e": "", "genre": "chu", "q": "ラッシュガードの着用が求められている利用者は誰ですか？", "id": "chu38"}, {"a": 0, "at": 1792140329508, "by": "seed", "c": ["貴重品ロッカー", "受付", "監視室", "プールサイド"], "e": "", "genre": "chu", "q": "貴重品はどこに預けることが推奨されていますか？", "id": "chu39"}, {"a": 0, "at": 1792140329509, "by": "seed", "c": ["ネックレス", "水泳帽子", "水着", "ゴーグル"], "e": "", "genre": "chu", "q": "遊泳中に着用が禁止されているものはどれですか？", "id": "chu40"}, {"a": 0, "at": 1792140329510, "by": "seed", "c": ["水・お茶・スポーツドリンク", "アルコール", "エナジードリンク", "炭酸飲料"], "e": "", "genre": "chu", "q": "水分補給として推奨されている飲み物はどれですか？", "id": "chu41"}, {"a": 0, "at": 1792140329511, "by": "seed", "c": ["蓋付き容器であること", "缶容器であること", "紙パックであること", "容器指定なし"], "e": "", "genre": "chu", "q": "飲み物を持ち込む際の条件は何ですか？", "id": "chu42"}, {"a": 0, "at": 1792140329512, "by": "seed", "c": ["潜水", "背泳ぎ", "クロール", "水中歩行"], "e": "", "genre": "chu", "q": "危険行為として明記されているものはどれですか？", "id": "chu43"}, {"a": 0, "at": 1792140329513, "by": "seed", "c": ["おぼれる真似", "準備運動", "水分補給", "シャワー"], "e": "", "genre": "chu", "q": "次のうち禁止行為はどれですか？", "id": "chu44"}, {"a": 0, "at": 1792140329514, "by": "seed", "c": ["入場を断る場合がある", "追加料金を払えば必ず利用できる", "小学生だけ利用できる", "抽選になる"], "e": "", "genre": "chu", "q": "満員時の対応として正しいものはどれですか？", "id": "chu45"}, {"a": 0, "at": 1792140329515, "by": "seed", "c": ["撮影は禁止", "写真のみ可能", "動画のみ可能", "許可不要"], "e": "", "genre": "chu", "q": "次のうち施設内撮影について正しいものはどれですか？", "id": "chu46"}, {"a": 0, "at": 1792140329516, "by": "seed", "c": ["安全確保と施設ルールの遵守", "できるだけ速く泳ぐこと", "長時間利用すること", "できるだけ他のガードプールに落とすこと"], "e": "", "genre": "chu", "q": "プール利用ルール全体を通して最も重要な考え方はどれですか？", "id": "chu47"}, {"a": 1, "at": 1792201626395, "by": "u_e2rOSmEJqmNmqvZtuu0O0g", "c": ["持っていた鍵を渡す", "使用していたロッカーを聞きLGが開錠する", "お客さんにぶん投げる", "一緒について行き開けるのを見届ける"], "e": "", "genre": "chu", "q": "お客様さんがロッカーキー探しに来ました。次のうち妥当な対応どれ？", "id": "g30ifm9ef1v2yis0nav9"}, {"a": 0, "at": 1792144107656, "by": "u_e2rOSmEJqmNmqvZtuu0O0g", "c": ["帽子とゴーグルを外す", "塩素をまく", "うなじを冷やす", "気付かないふりをする"], "e": "帽子とゴーグルを外して、水道で血液を洗い流します。", "genre": "jo", "q": "鼻血が出ました。一番最初の対応として最も妥当なのどれ？", "id": "opyvhfwc0ag14nhrr9w1"}, {"a": 0, "at": 1792144410762, "by": "u_e2rOSmEJqmNmqvZtuu0O0g", "c": ["監視を続けるorポジションカバー", "1番近いプールサイドに集まる", "AEDを取りに行く", "社員さんにTEL"], "e": "軽溺の場合は監視を優先して大丈夫です。", "genre": "jo", "q": "軽溺が発生しました。一番妥当な対応は？", "id": "p71087am1qg6lj7az3x7"}, {"a": 0, "at": 1792144811612, "by": "u_e2rOSmEJqmNmqvZtuu0O0g", "c": ["重溺発生場所付近のプールサイドに集まる", "監視を続ける", "気付かないふりをする", "Tに行き二次災害を防ぐ"], "e": "重溺発生時は一度現場に集まり、第一指示者の判断を仰いでください。※あくまでも一例です。臨機応変に動く事が大切です", "genre": "jo", "q": "重溺発生しました。1番妥当な対応はどれ？", "id": "sb693n78wef70ex0rac4"}, {"a": 0, "at": 1792144176877, "by": "u_e2rOSmEJqmNmqvZtuu0O0g", "c": ["5個", "1個", "3個", "10個"], "e": "", "genre": "jo", "q": "トイレサンダルで入れる固形塩素は何個？", "id": "xc6e33d3lensqugy4dy1"}];
+let fsQ = [], STANDALONE = false;
+function rebuildQ() {
+  const m = new Map();
+  SEED_Q.forEach((x) => m.set(x.id, x));
+  fsQ.forEach((x) => m.set(x.id, Object.assign({}, m.get(x.id) || {}, x)));
+  extraQ = Array.from(m.values()).filter((x) => !x.deleted).map(normQ).filter(Boolean);
+}
+function isAdmin() { return !STANDALONE || (Array.isArray(window.ADMIN_UIDS) && window.ADMIN_UIDS.indexOf(uid) >= 0); }
+function qSet(id, data) { return STANDALONE ? db.doc("questions/" + id).set(data, { merge: true }) : db.doc("questions/" + id).update(data); }
+function qDel(id) { return (STANDALONE && SEED_Q.some((x) => x.id === id)) ? db.doc("questions/" + id).set({ deleted: true }, { merge: true }) : db.doc("questions/" + id).delete(); }
+function poolFor(mode) {
+  const ex = (g) => extraQ.filter((x) => x.genre === g).map((x) => ({ q: x.q, c: x.c, a: x.a, e: x.e }));
+  // 自分たちの問題(アプリで登録・編集したもの)が十分あれば、それだけを出す。足りないときだけ、見本の問題で補う
+  const enough = (arr, n) => arr.length >= n;
+  if (mode === "chu") return enough(ex("chu"), MODES.chu.len) ? ex("chu") : BASE.chu.concat(ex("chu"));
+  if (mode === "jo") return enough(ex("jo"), MODES.jo.len) ? ex("jo") : BASE.jo.concat(ex("jo"));
+  const mine = ex("chu").concat(ex("jo"), ex("rate"));
+  return enough(mine, 20) ? mine : BASE.chu.concat(BASE.jo, mine);
+}
+function buildRunQuestions(mode) { // 問題が足りないときは、もう一巡させて必要な数にそろえる(同じ問題が続けて出ないように)
+  const n = MODES[mode].len, pool = poolFor(mode);
+  let out = [];
+  while (pool.length && out.length < n) {
+    const b = shuffle(pool.slice());
+    if (out.length && b.length > 1 && b[0].q === out[out.length - 1].q) b.push(b.shift());
+    out = out.concat(b);
+  }
+  return out.slice(0, n);
+}
+
+// ---- 保存(自分だけの記録。名前・チュートリアル・クリア状況) ----
+function saveProfile() {
+  if (db && uid) {
+    try { db.doc("data/users/" + uid + "/profile").set({ tutorialDone: tutorialDone, name: myName, chu: prog.chu, jo: prog.jo, at: Date.now() }).catch(() => {}); } catch (e) {}
+  }
+}
+function saveProg() {
+  try { localStorage.setItem("quiz-prog", JSON.stringify(prog)); } catch (e) {}
+  saveProfile();
+}
+function setName(v) {
+  myName = v;
+  try { localStorage.setItem("quiz-name", v); } catch (e) {}
+  saveProfile();
+  if (canSave() && rows.some((r) => r.id === uid)) { try { db.doc("results/" + uid).update({ name: v }).catch(() => {}); } catch (e) {} }
+}
+
+// ================= ドット絵のダンジョン =================
+const W = 160, H = 112, L = 54, CT = 30, FB = 72;
+const bgCache = {};
+function bgFor(pi) {
+  if (bgCache[pi]) return bgCache[pi];
+  const p = PALS[pi];
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  for (let px = 0; px < W; px++) {
+    const d = px < L ? px : (px >= W - L ? W - 1 - px : L);
+    const top = Math.round(CT * d / L);
+    const bot = Math.round(H - (H - FB) * d / L);
+    x.fillStyle = p.ceil;
+    x.fillRect(px, 0, 1, top);
+    const side = px < L || px >= W - L;
+    for (let py = top; py < bot; py++) {
+      let col;
+      if (side) col = ((((d / 6) | 0) + ((py / 6) | 0)) & 1) ? p.wa : p.wb;
+      else if (px >= 70 && px < 90 && py >= 42) col = (px >= 74 && px < 86 && py >= 46 && py < 58) ? p.back : p.door;
+      else col = p.back;
+      x.fillStyle = col;
+      x.fillRect(px, py, 1, 1);
+    }
+    for (let py = bot; py < H; py++) {
+      const band = py < 80 ? 0 : (py < 92 ? 1 : 2);
+      const tw = 4 + ((py - FB) >> 2);
+      x.fillStyle = (((Math.floor((px - W / 2) / tw)) + band) & 1) ? p.fa : p.fb;
+      x.fillRect(px, py, 1, 1);
+    }
+    if (side) {
+      const ry = Math.round(86 - 22 * d / L);
+      x.fillStyle = p.rail;
+      x.fillRect(px, ry, 1, 2);
+    }
+  }
+  x.fillStyle = p.light;
+  x.fillRect(66, 14, 28, 3);
+  x.fillRect(73, 24, 14, 2);
+  bgCache[pi] = c;
+  return c;
+}
+function drawHero(x, px, py, f) {
+  x.fillStyle = "rgba(0,0,0,0.3)"; x.fillRect(px + 1, py + 18, 10, 1);
+  x.fillStyle = "#2a2540"; x.fillRect(px + 3, py, 6, 5);
+  x.fillStyle = "#e9b98f"; x.fillRect(px + 4, py + 5, 4, 1);
+  x.fillStyle = "#eef0f8"; x.fillRect(px + 2, py + 6, 8, 5);
+  x.fillStyle = "#e9b98f"; x.fillRect(px + 1, py + 7, 1, 4); x.fillRect(px + 10, py + 7, 1, 4);
+  x.fillStyle = "#1c2447"; x.fillRect(px + 2, py + 11, 8, 3);
+  x.fillStyle = "#e9b98f";
+  x.fillRect(px + 3, py + 14, 2, f ? 3 : 4);
+  x.fillRect(px + 7, py + 14, 2, f ? 4 : 3);
+  x.fillStyle = "#20202a";
+  x.fillRect(px + 3, py + (f ? 17 : 18), 2, 1);
+  x.fillRect(px + 7, py + (f ? 18 : 17), 2, 1);
+}
+function palIdx() { return G && MODES[G.mode] ? MODES[G.mode].pal : 0; }
+let frame = 0;
+function drawScene() {
+  const c = document.getElementById("scene");
+  if (!c) return;
+  const x = c.getContext("2d");
+  x.imageSmoothingEnabled = false;
+  if (G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
+  else x.drawImage(bgFor(palIdx()), 0, 0);
+  if (G && G.flash && G.state === "fb" && !G.lastOk) { x.fillStyle = "rgba(255,60,60,0.3)"; x.fillRect(0, 0, W, H); }
+}
+
+// ================= ハート =================
+const HEART = [".XX...XX.", "XXXX.XXXX", "XXXXXXXXX", "XXXXXXXXX", ".XXXXXXX.", "..XXXXX..", "...XXX...", "....X...."];
+function heart(full) {
+  const NS = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(NS, "svg");
+  s.setAttribute("viewBox", "0 0 9 8");
+  s.setAttribute("shape-rendering", "crispEdges");
+  s.setAttribute("class", "heart" + (full ? "" : " lost"));
+  s.setAttribute("aria-hidden", "true");
+  HEART.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === "X") {
+      const r = document.createElementNS(NS, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 1); r.setAttribute("height", 1);
+      s.appendChild(r);
+    }
+  }));
+  return s;
+}
+
+// ================= 画面 =================
+function sceneCanvas(extra) {
+  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 ? " nbg" : G && G.mode === "chu" ? " chubg" : G && G.mode === "rate" ? " rbg" : ""));
+  if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
+  const cv = document.createElement("canvas");
+  cv.id = "scene"; cv.width = W; cv.height = H;
+  cv.setAttribute("role", "img");
+  cv.setAttribute("aria-label", "ドット絵のダンジョン");
+  wrap.appendChild(cv);
+  return wrap;
+}
+
+// 敵。待機はゆれる / 登場でポンと出る / 不正解で飛びかかる(攻撃) / 正解でのけぞって消える(撃退)
+// 撃破の動き(敵ごと)。0=ぺしゃんこになって弾ける / 1=回転して消える / 2=ばたりと倒れて星が出る / 3=キャンと飛んでいく
+const REPEL = [
+  { dur: 700, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(0, 0) scale(1.18, 0.78)", opacity: 1, filter: "brightness(3)", offset: 0.28 },
+    { transform: "translate(0, 0) scale(0.25, 1.3)", opacity: 0.4, filter: "brightness(3)", offset: 0.42 },
+    { transform: "translate(0, 0) scale(1.7, 1.7)", opacity: 0, filter: "brightness(3)", offset: 0.55 },
+    { transform: "translate(0, 0) scale(1.7, 1.7)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  { dur: 850, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(0, -6%) rotate(300deg) scale(0.9)", opacity: 1, filter: "brightness(2)", offset: 0.45 },
+    { transform: "translate(0, -12%) rotate(900deg) scale(0)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  { dur: 950, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) rotate(-6deg)", opacity: 1, filter: "brightness(3)", offset: 0.15 },
+    { transform: "translate(3%, 0) rotate(6deg)", opacity: 1, filter: "brightness(3)", offset: 0.3 },
+    { transform: "translate(0, 8%) rotate(-95deg)", opacity: 1, filter: "brightness(1.5)", offset: 0.65 },
+    { transform: "translate(0, 14%) rotate(-95deg)", opacity: 0, filter: "brightness(1)", offset: 1 }] },
+  { dur: 850, ease: "ease-out", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) rotate(-8deg) scale(1.05)", opacity: 1, filter: "brightness(3)", offset: 0.15 },
+    { transform: "translate(70%, -110%) rotate(540deg) scale(0.3)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 4 床みがき機: ショートして、火花とけむりで爆発
+  { dur: 850, ease: "linear", frames: [
+    { transform: "translate(0, 0) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-4%, 0) scale(1)", opacity: 1, filter: "brightness(2)", offset: 0.1 },
+    { transform: "translate(4%, 0) scale(1)", opacity: 1, filter: "brightness(3)", offset: 0.2 },
+    { transform: "translate(-4%, 0) scale(1.03)", opacity: 1, filter: "brightness(2)", offset: 0.3 },
+    { transform: "translate(4%, 0) scale(1.05)", opacity: 1, filter: "brightness(3)", offset: 0.4 },
+    { transform: "translate(0, 0) scale(1.25)", opacity: 1, filter: "brightness(3)", offset: 0.55 },
+    { transform: "translate(0, 0) scale(1.5)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 5 メガホン: 息を吸って、回転しながら飛んでいく
+  { dur: 950, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(0, 0) rotate(-4deg) scale(1.15)", opacity: 1, filter: "brightness(2)", offset: 0.2 },
+    { transform: "translate(0, 0) rotate(2deg) scale(0.9)", opacity: 1, filter: "brightness(3)", offset: 0.35 },
+    { transform: "translate(-80%, -110%) rotate(-720deg) scale(0.2)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 6 ピンクの積み重なり: がたがた揺れて、ばらばらに崩れる
+  { dur: 850, ease: "ease-in", origin: "50% 100%", frames: [
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) scale(1, 1)", opacity: 1, filter: "brightness(3)", offset: 0.15 },
+    { transform: "translate(3%, 0) scale(1, 1)", opacity: 1, filter: "brightness(3)", offset: 0.3 },
+    { transform: "translate(0, 0) scale(1.08, 0.9)", opacity: 1, filter: "brightness(2)", offset: 0.5 },
+    { transform: "translate(0, 0) scale(1.25, 0)", opacity: 0.1, filter: "brightness(1.5)", offset: 1 }] },
+  // 7 机: ひっくり返って、ほこりを舞い上げる
+  { dur: 1000, ease: "ease-in-out", frames: [
+    { transform: "translate(0, 0) rotate(0deg)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(0, -8%) rotate(-4deg)", opacity: 1, filter: "brightness(3)", offset: 0.15 },
+    { transform: "translate(0, -30%) rotate(180deg)", opacity: 1, filter: "brightness(1.5)", offset: 0.6 },
+    { transform: "translate(0, 5%) rotate(180deg)", opacity: 0, filter: "brightness(1)", offset: 1 }] },
+  // 8 監視台: 木のように、ゆっくり倒れる
+  { dur: 1050, ease: "ease-in", origin: "50% 100%", frames: [
+    { transform: "rotate(0deg)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "rotate(-3deg)", opacity: 1, filter: "brightness(3)", offset: 0.12 },
+    { transform: "rotate(3deg)", opacity: 1, filter: "brightness(3)", offset: 0.25 },
+    { transform: "rotate(86deg)", opacity: 1, filter: "brightness(1.5)", offset: 0.82 },
+    { transform: "rotate(90deg)", opacity: 0, filter: "brightness(1)", offset: 1 }] },
+  // 9 ヌードルモンスター(裏ボス): ぐらぐら揺れて、まっ赤に光って弾け飛ぶ
+  { dur: 1100, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-4%, 0) rotate(-6deg) scale(1.05)", opacity: 1, filter: "brightness(3)", offset: 0.15 },
+    { transform: "translate(4%, 0) rotate(6deg) scale(1.08)", opacity: 1, filter: "brightness(3)", offset: 0.3 },
+    { transform: "translate(0, -6%) rotate(-3deg) scale(1.2)", opacity: 1, filter: "brightness(4) saturate(2)", offset: 0.55 },
+    { transform: "translate(0, -10%) rotate(0deg) scale(2)", opacity: 0, filter: "brightness(5)", offset: 1 }] },
+  // 10 イタズラおじさん: ころんと転んで、笑いながら飛んでいく
+  { dur: 1000, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) rotate(-10deg) scale(1.05)", opacity: 1, filter: "brightness(3)", offset: 0.2 },
+    { transform: "translate(3%, -8%) rotate(12deg) scale(1.05)", opacity: 1, filter: "brightness(2)", offset: 0.4 },
+    { transform: "translate(90%, -120%) rotate(720deg) scale(0.2)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 11 エビサンダル: ぷるぷる震えて、ぱちんと水しぶきになる
+  { dur: 800, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) scale(1.05, 0.95)", opacity: 1, filter: "brightness(3)", offset: 0.15 },
+    { transform: "translate(3%, 0) scale(1.05, 0.95)", opacity: 1, filter: "brightness(3)", offset: 0.3 },
+    { transform: "translate(0, -6%) scale(1.3, 1.3)", opacity: 1, filter: "brightness(4)", offset: 0.55 },
+    { transform: "translate(0, -6%) scale(1.8, 1.8)", opacity: 0, filter: "brightness(4)", offset: 1 }] },
+  // 12 中級ボス(銅像): ひび割れが光って、ぐらぐら揺れて崩れ落ちる
+  { dur: 1500, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-2%, 0) scale(1.02, 1)", opacity: 1, filter: "brightness(2.5) saturate(2)", offset: 0.15 },
+    { transform: "translate(2%, 0) scale(1.02, 1)", opacity: 1, filter: "brightness(3) saturate(2)", offset: 0.3 },
+    { transform: "translate(-2%, 2%) scale(1.03, .98)", opacity: 1, filter: "brightness(3.5) saturate(2)", offset: 0.5 },
+    { transform: "translate(0, 8%) scale(1.1, .6)", opacity: .8, filter: "brightness(2)", offset: 0.8 },
+    { transform: "translate(0, 22%) scale(1.3, .1)", opacity: 0, filter: "brightness(1)", offset: 1 }] },
+  // 13 ベンチ: ガタガタ震えて、ひっくり返って消える
+  { dur: 1000, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) rotate(-3deg) scale(1.03)", opacity: 1, filter: "brightness(2.5)", offset: 0.2 },
+    { transform: "translate(3%, 0) rotate(3deg) scale(1.05)", opacity: 1, filter: "brightness(3)", offset: 0.4 },
+    { transform: "translate(0, -10%) rotate(-100deg) scale(1)", opacity: 1, filter: "brightness(3)", offset: 0.7 },
+    { transform: "translate(0, 30%) rotate(-180deg) scale(.4)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 14 マネキン: ひび割れて光り、ばらばらに崩れる
+  { dur: 1200, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-2%, 0) scale(1.02, 1)", opacity: 1, filter: "brightness(2.5) saturate(2)", offset: 0.2 },
+    { transform: "translate(2%, 0) scale(1.02, 1)", opacity: 1, filter: "brightness(3.5)", offset: 0.4 },
+    { transform: "translate(0, 4%) scale(1.1, .8)", opacity: 0.8, filter: "brightness(3)", offset: 0.7 },
+    { transform: "translate(0, 25%) scale(1.3, .1)", opacity: 0, filter: "brightness(1)", offset: 1 }] },
+  // 15 キューピー: ころんと転んで、笑いながら飛んでいく
+  { dur: 1100, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-4%, 0) rotate(-10deg) scale(1.05)", opacity: 1, filter: "brightness(2)", offset: 0.2 },
+    { transform: "translate(4%, 0) rotate(10deg) scale(1.05)", opacity: 1, filter: "brightness(2.5)", offset: 0.4 },
+    { transform: "translate(60%, -60%) rotate(360deg) scale(.5)", opacity: 0.8, filter: "brightness(3)", offset: 0.8 },
+    { transform: "translate(120%, -120%) rotate(720deg) scale(.1)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 16 時計: カチカチ震えてショートして爆発する
+  { dur: 900, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-3%, 0) scale(1.03)", opacity: 1, filter: "brightness(2)", offset: 0.2 },
+    { transform: "translate(3%, 0) scale(1.05)", opacity: 1, filter: "brightness(3)", offset: 0.35 },
+    { transform: "translate(0, -4%) scale(1.3)", opacity: 1, filter: "brightness(4)", offset: 0.6 },
+    { transform: "translate(0, -6%) scale(1.8)", opacity: 0, filter: "brightness(4)", offset: 1 }] },
+  // 17 コーン: ぱたんと倒れて、はね飛ぶ
+  { dur: 1000, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(0, 0) rotate(-6deg) scale(1.05)", opacity: 1, filter: "brightness(2.5)", offset: 0.25 },
+    { transform: "translate(8%, 0) rotate(60deg) scale(1)", opacity: 1, filter: "brightness(3)", offset: 0.55 },
+    { transform: "translate(60%, 10%) rotate(100deg) scale(.7)", opacity: 0.6, filter: "brightness(3)", offset: 0.85 },
+    { transform: "translate(110%, 20%) rotate(120deg) scale(.3)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 18 ブラックバス: ぴちぴち跳ねて、水しぶきになる
+  { dur: 1000, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(0, -12%) rotate(-12deg) scale(1.05)", opacity: 1, filter: "brightness(2)", offset: 0.25 },
+    { transform: "translate(0, 4%) rotate(10deg) scale(1.05)", opacity: 1, filter: "brightness(2.5)", offset: 0.45 },
+    { transform: "translate(0, -20%) rotate(-8deg) scale(1.1)", opacity: 0.8, filter: "brightness(3)", offset: 0.7 },
+    { transform: "translate(0, 10%) scale(1.4, .2)", opacity: 0, filter: "brightness(3)", offset: 1 }] },
+  // 19 ラスボス(コースロープドラゴン): 水しぶきをあげてのたうち、光って弾け飛ぶ
+  { dur: 1600, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-4%, 0) rotate(-4deg) scale(1.04)", opacity: 1, filter: "brightness(2.5) saturate(1.5)", offset: 0.15 },
+    { transform: "translate(4%, -2%) rotate(4deg) scale(1.06)", opacity: 1, filter: "brightness(3) saturate(1.5)", offset: 0.3 },
+    { transform: "translate(-3%, 0) rotate(-3deg) scale(1.1)", opacity: 1, filter: "brightness(3.5)", offset: 0.5 },
+    { transform: "translate(0, -6%) rotate(0deg) scale(1.3)", opacity: 0.9, filter: "brightness(4)", offset: 0.75 },
+    { transform: "translate(0, -10%) scale(1.8)", opacity: 0, filter: "brightness(5)", offset: 1 }] },
+  // 20 看板ゾンビ(激レア): ひらひら舞って、金色に光ってはじける
+  { dur: 1400, ease: "ease-in", frames: [
+    { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1, filter: "brightness(1)", offset: 0 },
+    { transform: "translate(-5%, -4%) rotate(-8deg) scale(1.05)", opacity: 1, filter: "brightness(2) sepia(1)", offset: 0.2 },
+    { transform: "translate(5%, -8%) rotate(8deg) scale(1.08)", opacity: 1, filter: "brightness(2.5) sepia(1)", offset: 0.4 },
+    { transform: "translate(-3%, -14%) rotate(-6deg) scale(1.15)", opacity: 1, filter: "brightness(3) sepia(1) saturate(3)", offset: 0.65 },
+    { transform: "translate(0, -22%) scale(1.6)", opacity: 0, filter: "brightness(5) sepia(1)", offset: 1 }] }
+];
+// 撃破のときに散らす粒(敵ごと)。at は動きが始まってから出るまでの時間(ms)
+const FX = [
+  { colors: ["#2f7bf0", "#8cc0ff", "#ffffff"], n: 16, size: [5, 10], dist: [40, 95], dur: 600, at: 260, shape: "square" },
+  { colors: ["#2f9bf0", "#ffffff", "#9fdcff"], n: 16, size: [5, 9], dist: [50, 110], dur: 700, at: 500, shape: "square", spin: true },
+  { colors: ["#ffd34d", "#ffffff"], n: 8, size: [14, 20], dist: [30, 80], dur: 800, at: 520, shape: "star", up: true },
+  { colors: ["#ffffff", "#e9e4d6", "#c9c2b0"], n: 12, size: [12, 20], dist: [20, 65], dur: 650, at: 0, shape: "puff" },
+  { colors: ["#ffd34d", "#ffffff", "#ff9a3d"], n: 14, size: [4, 8], dist: [50, 120], dur: 600, at: 420, shape: "square",
+    more: { colors: ["#b8a98a", "#8c8c9a", "#d8d0bc"], n: 10, size: [14, 24], dist: [20, 70], dur: 800, at: 480, shape: "puff" } },
+  { colors: ["#ff3b30", "#ffd34d", "#ffffff"], n: 12, size: [5, 10], dist: [40, 100], dur: 600, at: 0, shape: "square" },
+  { colors: ["#e0306b", "#ff6fa0", "#8a1840", "#ffd34d"], n: 16, size: [8, 16], dist: [30, 90], dur: 850, at: 380, shape: "square", fall: true },
+  { colors: ["#c9b79c", "#8a7a68", "#e8dcc8", "#ff4040"], n: 14, size: [8, 18], dist: [30, 100], dur: 750, at: 600, shape: "puff" },
+  { colors: ["#ffffff", "#7fb4ff", "#2f7bf0"], n: 12, size: [5, 9], dist: [40, 110], dur: 600, at: 700, shape: "square" },
+  { colors: ["#ff3b5c", "#ffd34d", "#ffffff", "#ff8aa0"], n: 22, size: [6, 14], dist: [50, 140], dur: 800, at: 600, shape: "square",
+    more: { colors: ["#ffffff", "#ffd34d"], n: 8, size: [14, 22], dist: [30, 90], dur: 900, at: 650, shape: "star", up: true } },
+  { colors: ["#ffd34d", "#ffffff", "#ff8aa0"], n: 12, size: [12, 20], dist: [30, 90], dur: 800, at: 450, shape: "star", up: true },
+  { colors: ["#7fd0ff", "#ffffff", "#2f9bf0", "#ff3b30"], n: 22, size: [5, 11], dist: [40, 120], dur: 700, at: 420, shape: "puff" },
+  { colors: ["#ff8a2a", "#ffd34d", "#6b5a48", "#3a3028"], n: 28, size: [6, 14], dist: [50, 150], dur: 900, at: 500, shape: "square", fall: true,
+    more: { colors: ["#ffffff", "#e9e4d6", "#c9c2b0"], n: 14, size: [14, 24], dist: [20, 80], dur: 900, at: 900, shape: "puff" } },
+  { colors: ["#2f7bf0", "#ffd34d", "#ffffff", "#8cc0ff"], n: 16, size: [5, 10], dist: [40, 110], dur: 650, at: 450, shape: "square" },
+  { colors: ["#ffffff", "#e9e4d6", "#ff8a2a"], n: 14, size: [10, 18], dist: [25, 80], dur: 750, at: 500, shape: "puff" },
+  { colors: ["#ffb48a", "#ff8aa0", "#ffffff"], n: 12, size: [10, 18], dist: [30, 90], dur: 800, at: 450, shape: "star", up: true },
+  { colors: ["#c8d4ff", "#ffffff", "#ff3b30", "#2f7bf0"], n: 14, size: [5, 10], dist: [40, 110], dur: 650, at: 420, shape: "square", spin: true },
+  { colors: ["#ff5a2a", "#ffffff", "#ffd34d"], n: 16, size: [6, 12], dist: [40, 110], dur: 700, at: 480, shape: "square", fall: true },
+  { colors: ["#9fdcff", "#ffffff", "#8bd34a", "#2f9bf0"], n: 16, size: [6, 12], dist: [40, 120], dur: 750, at: 500, shape: "puff" },
+  { colors: ["#2f9bf0", "#ffd34d", "#ffffff", "#8cc0ff"], n: 30, size: [6, 14], dist: [60, 160], dur: 900, at: 800, shape: "square",
+    more: { colors: ["#ffffff", "#9fdcff", "#ffd34d"], n: 14, size: [14, 26], dist: [30, 100], dur: 900, at: 900, shape: "puff", up: true } },
+  { colors: ["#ffd34d", "#ffffff", "#ffb84d", "#fff3a0"], n: 34, size: [12, 24], dist: [60, 170], dur: 1100, at: 500, shape: "star", up: true,
+    more: { colors: ["#ffd34d", "#ffffff"], n: 20, size: [6, 12], dist: [40, 140], dur: 900, at: 520, shape: "square" } }
+];
+function burst(wrap, fx) {
+  if (!fx || typeof wrap.animate !== "function") return;
+  for (let i = 0; i < fx.n; i++) {
+    const p = document.createElement("span");
+    const s = fx.size[0] + Math.random() * (fx.size[1] - fx.size[0]);
+    p.style.cssText = "position:absolute;left:50%;top:50%;pointer-events:none;line-height:1;z-index:1;";
+    const col = fx.colors[i % fx.colors.length];
+    if (fx.shape === "star") { p.textContent = "★"; p.style.color = col; p.style.fontSize = s + "px"; }
+    else {
+      p.style.width = s + "px"; p.style.height = s + "px"; p.style.background = col;
+      if (fx.shape === "puff") p.style.borderRadius = "50%";
+    }
+    const ang = (Math.PI * 2 * i) / fx.n + Math.random() * 0.6;
+    const d = fx.dist[0] + Math.random() * (fx.dist[1] - fx.dist[0]);
+    const dx = Math.cos(ang) * d;
+    const dy = fx.up ? -Math.abs(Math.sin(ang) * d) - 20 : (fx.fall ? Math.abs(Math.sin(ang) * d) + 30 : Math.sin(ang) * d);
+    wrap.appendChild(p);
+    const a = p.animate([
+      { opacity: 0, transform: "translate(-50%, -50%) scale(0.6)", offset: 0 },
+      { opacity: 1, transform: "translate(-50%, -50%) scale(1)", offset: 0.12 },
+      { opacity: 0, transform: "translate(calc(-50% + " + dx + "px), calc(-50% + " + dy + "px)) scale(0.3) rotate(" + (fx.spin ? 360 : 0) + "deg)", offset: 1 }
+    ], { duration: fx.dur, delay: fx.at, easing: "ease-out", fill: "both" });
+    a.onfinish = () => p.remove();
+  }
+  if (fx.more) burst(wrap, fx.more);
+}
+
+// ---- 攻撃エフェクトのコマ(元の絵のあいだを、なめらかにつないだもの) [ファイル, 幅, 高さ, 足もと] ----
+const XB = [["ij-u1.png", 182, 257], ["ij-u2.png", 193, 213], ["ij-t3.png", 205, 229], ["ij-u3.png", 244, 247], ["ij-t4.png", 285, 290]]; // イタズラおじさんのボール(元の5コマ)
+const XE = [["ij-s06.png", 204, 204], ["ij-s07.png", 204, 204], ["ij-s08.png", 204, 204], ["ij-s09.png", 204, 204], ["ij-s10.png", 204, 204], ["ij-s11.png", 204, 204], ["ij-s12.png", 204, 204], ["ij-s13.png", 204, 204], ["ij-s14.png", 204, 204], ["ij-s15.png", 204, 204]]; // エビサンダル(元の絵のコマ6〜15)
+const XA = [["nd-a1.png", 181, 301, 87.3], ["nd-a2.png", 194, 301, 94.7], ["nd-a3.png", 179, 301, 84.2], ["nd-a4.png", 181, 301, 87.4], ["nd-a5.png", 201, 301, 83.3], ["nd-a6.png", 222, 301, 87.2]]; // ヌードルモンスターの構え→スイング(元の6コマ)
+const XC = [["nd-b1.png", 191, 280], ["nd-b2.png", 250, 280], ["nd-b3.png", 319, 280], ["nd-b4.png", 258, 280], ["nd-b5.png", 315, 280], ["nd-c1.png", 314, 308], ["nd-c2.png", 315, 308], ["nd-c3.png", 329, 308], ["nd-c4.png", 427, 308]]; // ヌードルモンスターの斬撃カットイン(元の9コマ)
+
+// 演出の絵を、先に読み込んでデコードしておく(使う瞬間に読み込むと、表示が一瞬欠けたり、かくついたりするため)
+const FX_KEEP = [];
+// ヌードルモンスター(裏ボス)の素材は、残りライフが3になった時点でまとめて読み込む
+function preloadNoodle() {
+  if (preloadNoodle.done) return; preloadNoodle.done = true;
+  const names = ["nd-idle.png", "noodle-bg.jpg"];
+  XA.concat(XC).forEach((d) => names.push(d[0]));
+  names.forEach((n) => { const im = new Image(); im.src = n; FX_KEEP.push(im); if (im.decode) im.decode().catch(() => {}); });
+}
+function preloadAed() {
+  if (preloadAed.done) return; preloadAed.done = true;
+  Object.keys(AED_FR).forEach((k) => { const im = new Image(); im.src = AED_FR[k][0]; FX_KEEP.push(im); if (im.decode) im.decode().catch(() => {}); });
+}
+function preloadFx() {
+  if (preloadFx.done) return; preloadFx.done = true;
+  const names = [];
+  for (let k = 1; k <= 9; k++) names.push("enemy" + k + ".png");
+  for (let k = 10; k <= 17; k++) names.push("enemy" + k + ".png");
+  names.push("enemy-boss1.png", "chu-bg.jpg");
+  for (let k = 1; k <= RATE_BG_N; k++) names.push("rate-bg" + k + ".jpg");
+  names.push("ij-oji.png", "ij-ebi.png");
+  XB.concat(XE).forEach((d) => names.push(d[0]));
+  for (let k = 1; k <= 15; k++) names.push("ij-s" + String(k).padStart(2, "0") + ".png");
+  let i = 0;
+  const step = () => { if (i >= names.length) return; const im = new Image(); im.src = names[i++]; FX_KEEP.push(im); (im.decode ? im.decode() : Promise.resolve()).catch(() => {}).then(() => setTimeout(step, 60)); };
+  step(); step();
+}
+
+// 画面いっぱいのカットイン: コマを順に切りかえ、ぐんと迫る。sfx は {コマ番号: 効果音}
+function playSeq(scn, frames, o, alive, done) {
+  const cin = document.createElement("div");
+  cin.style.cssText = "position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:" + o.bg + ";overflow:hidden;line-height:0;";
+  const box = document.createElement("div"); box.style.cssText = "display:flex;align-items:center;justify-content:center;width:100%;height:100%;";
+  const ims = frames.map((f) => { const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false; im.style.cssText = "display:none;height:" + (f[2] * o.k) + "%;width:auto;max-width:none;image-rendering:pixelated;"; box.appendChild(im); return im; });
+  cin.appendChild(box); scn.appendChild(cin);
+  const total = frames.reduce((n, _, i) => n + o.dur(i, frames.length), 0);
+  if (box.animate) box.animate([{ transform: "scale(" + o.ramp[0] + ")" }, { transform: "scale(" + o.ramp[1] + ")" }], { duration: total, fill: "forwards", easing: "ease-in" });
+  let t = 0;
+  frames.forEach((f, i) => {
+    setTimeout(() => { if (!alive()) return; ims.forEach((m, j) => { m.style.display = j === i ? "block" : "none"; }); if (o.sfx && o.sfx[i]) Bgm.sfx(o.sfx[i]); }, t);
+    t += o.dur(i, frames.length);
+  });
+  setTimeout(() => { cin.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: "forwards" }).finished.then(() => cin.remove()).catch(() => cin.remove()); if (alive() && done) done(); }, t + 40);
+  return t;
+}
+function flashScene(scn, color, ms) {
+  const f = document.createElement("div"); f.style.cssText = "position:absolute;inset:0;z-index:6;pointer-events:none;background:" + color + ";";
+  scn.appendChild(f); f.animate([{ opacity: 0 }, { opacity: .85, offset: .25 }, { opacity: 0 }], { duration: ms }).finished.then(() => f.remove()).catch(() => f.remove());
+}
+function clawSlashes(scn, alive) { // 斜めの爪あと(3本)
+  [[18, -32, 0], [40, -28, 80], [62, -34, 160]].forEach((d) => {
+    setTimeout(() => {
+      if (!alive()) return;
+      Bgm.sfx("claw");
+      const b = document.createElement("div");
+      b.style.cssText = "position:absolute;left:8%;width:84%;height:7px;top:" + d[0] + "%;z-index:6;pointer-events:none;border-radius:4px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff 20%,#ff3b3b 60%,rgba(255,60,60,0));transform-origin:0 50%;";
+      scn.appendChild(b);
+      b.animate([{ opacity: 1, transform: "rotate(" + d[1] + "deg) scaleX(0)" }, { opacity: 1, transform: "rotate(" + d[1] + "deg) scaleX(1)", offset: .35 }, { opacity: 0, transform: "rotate(" + d[1] + "deg) scaleX(1)" }], { duration: 380 }).finished.then(() => b.remove()).catch(() => b.remove());
+    }, d[2]);
+  });
+}
+// ヌードルモンスターの攻撃: 構え→フルスイング→赤い斬撃のカットイン(コマ数多め)
+function noodleAttack(wrap, img) {
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement;
+    if (!scn || !wrap.isConnected) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    const hp = wrap.getBoundingClientRect().height, wp = wrap.getBoundingClientRect().width, sc = hp / 182 * 0.728;
+    const box = document.createElement("div");
+    box.style.cssText = "position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;";
+    const fr = XA.map((d) => {
+      const f = document.createElement("img");
+      f.src = d[0]; f.alt = ""; f.draggable = false;
+      f.style.cssText = "position:absolute;bottom:0;display:none;image-rendering:pixelated;max-width:none;left:" + (wp * 0.55 - d[3] * sc) + "px;width:" + (d[1] * sc) + "px;height:" + (d[2] * sc) + "px";
+      box.appendChild(f); return f;
+    });
+    wrap.appendChild(box);
+    const pose = (k) => { img.style.visibility = k == null ? "visible" : "hidden"; fr.forEach((f, n) => { f.style.display = n === k ? "block" : "none"; }); };
+    const T = (ms, fn) => setTimeout(() => { if (alive()) fn(); }, ms);
+    // 構え→ふりかぶり→スイング(元の6コマ)
+    const plan = [[0, 0], [1, 220], [2, 440], [3, 660], [4, 860], [5, 1060]];
+    plan.forEach((p) => T(p[1], () => pose(p[0])));
+    T(0, () => Bgm.sfx("swing"));
+    box.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(0,-4%) scale(1)", offset: .5 }, { transform: "translate(0,0) scale(1)", offset: .75 }, { transform: "translate(0,30%) scale(1.3)" }], { duration: 1250, fill: "forwards", easing: "ease-in" });
+    T(1060, () => { Bgm.sfx("hurt"); });
+    // 斬撃のカットイン(元の9コマ)
+    T(1300, () => {
+      playSeq(scn, XC, { bg: "radial-gradient(circle at 50% 50%,#6a0f2a 0%,#1a0310 70%,#000 100%)", k: 0.34, ramp: [0.96, 1.04], dur: (i, n) => (i < 5 ? 230 : i < n - 1 ? 260 : 520), sfx: { 0: "slash", 5: "slash", 7: "swing", 8: "smash" } }, alive, () => {
+        flashScene(scn, "#fff", 360);
+        if (g.hp <= 0) setTimeout(() => { if (alive() && g === G && g.state === "fb") { Bgm.sfx("pop"); talkStart(["俺のパワハラは止まらんえぇ〜"]); } }, 500);
+      });
+    });
+    T(1300, () => { box.remove(); pose(null); });
+  });
+}
+
+// ---- イベント戦: イタズラおじさん → ボール → エビサンダル召喚 → おじさんと勝負 ----
+function evBanner(scn, text) {
+  scn.querySelectorAll(".evbanner").forEach((n) => n.remove());
+  if (!text) return null;
+  const b = document.createElement("div"); b.className = "evbanner"; b.textContent = text; scn.appendChild(b); return b;
+}
+function playBall(scn, alive, done) { // ボールが迫ってくるカットイン(10コマ)
+  return playSeq(scn, XB, { bg: "radial-gradient(circle at 50% 50%,#12307a 0%,#050b24 70%,#000 100%)", k: 0.33, ramp: [0.9, 1.1], dur: (i, n) => (i < n - 1 ? 260 : 500), sfx: { 0: "throw", 3: "ballhit" } }, alive, () => { flashScene(scn, "#bfe3ff", 300); if (done) done(); });
+}
+function ghostEnemy(scn, idx, bottom) {
+  const E = ENEMIES[idx], w = el("div", "enemy-wrap i" + idx);
+  w.style.height = E.h + "%"; w.style.aspectRatio = String(E.ar); if (bottom != null) w.style.bottom = bottom;
+  const im = document.createElement("img"); im.className = "enemy"; im.src = E.src; im.alt = E.alt; im.draggable = false; w.appendChild(im);
+  scn.appendChild(w); return w;
+}
+function ebiIntro(wrap) {
+  const g = G; g.lock = true;
+  wrap.style.visibility = "hidden";
+  document.documentElement.classList.add("evintro");
+  setTimeout(() => { g.lock = false; document.documentElement.classList.remove("evintro"); }, 9000);
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement;
+    if (!scn) { g.lock = false; return; }
+    const alive = () => wrap.isConnected && G === g;
+    const T = (ms, fn) => setTimeout(() => { if (alive()) fn(); }, ms);
+    evBanner(scn, "イタズラおじさんが あらわれた!");
+    Bgm.sfx("pop");
+    const oj = ghostEnemy(scn, 10);
+    oj.animate([{ opacity: 0, transform: "translateX(-50%) translateY(-25%) scale(.5)" }, { opacity: 1, transform: "translateX(-50%) translateY(0) scale(1)" }], { duration: 380, easing: "ease-out" });
+    T(900, () => evBanner(scn, "ボールを なげてきた!"));
+    T(1100, () => { playBall(scn, alive, null); });
+    T(2900, () => { oj.remove(); evBanner(scn, "エビサンダルを しょうかん!"); Bgm.sfx("summon"); Bgm.sfx("splash"); });
+    // 水しぶきの中からエビサンダルが出てくる(15コマ)
+    T(2950, () => {
+      const sp = document.createElement("img");
+      sp.alt = ""; sp.draggable = false;
+      sp.style.cssText = "position:absolute;left:50%;bottom:30%;transform:translateX(-50%);height:56%;width:auto;max-width:none;image-rendering:pixelated;z-index:2;pointer-events:none;";
+      scn.appendChild(sp);
+      for (let k = 1; k <= 15; k++) setTimeout(() => { if (alive()) { sp.src = "ij-s" + String(k).padStart(2, "0") + ".png"; if (k % 4 === 1) Bgm.sfx("bubble"); } }, (k - 1) * 110);
+      setTimeout(() => {
+        sp.remove();
+        if (!alive()) return;
+        wrap.style.visibility = "visible";
+        wrap.firstChild.animate([{ transform: "scale(1.25)", opacity: .4 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "ease-out" });
+        evBanner(scn, "エビサンダルを たおして、おじさんに しょうぶだ!");
+        g.lock = false; document.documentElement.classList.remove("evintro");
+        setTimeout(() => { if (alive()) evBanner(scn, ""); }, 2200);
+      }, 15 * 110 + 40);
+    });
+  });
+}
+function ojiEntrance(wrap) {
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement; if (!scn) return;
+    evBanner(scn, "イタズラおじさんと しょうぶ!");
+    Bgm.sfx("pop");
+    setTimeout(() => { if (wrap.isConnected) evBanner(scn, ""); }, 2200);
+  });
+}
+function ojiThrow(wrap) { // 不正解のとき、おじさんがボールをぶつけてくる
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement; if (!scn) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    setTimeout(() => { if (alive()) playBall(scn, alive, null); }, 280);
+  });
+}
+// エビサンダルの飛びかかり: 水しぶきとともに迫り(10コマ)、爪で3回ひっかく
+function ebiPounce(wrap, img) {
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement; if (!scn) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    const sr = scn.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    const hp = wr.height;
+    const box = document.createElement("div");
+    box.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);z-index:3;pointer-events:none;line-height:0;bottom:" + (sr.bottom - wr.bottom - hp * 0.08) + "px;height:" + (hp * 1.6) + "px;aspect-ratio:" + (XE[0][1] / XE[0][2]) + ";transform-origin:50% 100%;";
+    const ims = XE.map((f) => { const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false; im.style.cssText = "display:none;position:absolute;left:0;top:0;width:100%;height:100%;image-rendering:pixelated;"; box.appendChild(im); return im; });
+    scn.appendChild(box);
+    img.style.visibility = "hidden";
+    Bgm.sfx("pounce");
+    const per = 170;
+    ims.forEach((m, i) => setTimeout(() => { if (alive()) ims.forEach((x, j) => { x.style.display = j === i ? "block" : "none"; }); }, i * per));
+    box.animate([{ transform: "translateX(-50%) translateY(0) scale(.85)" }, { transform: "translateX(-50%) translateY(" + (hp * 0.25) + "px) scale(1.6)" }], { duration: per * XE.length, fill: "forwards", easing: "ease-in" });
+    setTimeout(() => { if (alive()) clawSlashes(scn, alive); }, per * XE.length - 120);
+    setTimeout(() => { if (alive()) { Bgm.sfx("hit"); flashScene(scn, "#ff4d4d", 320); } }, per * XE.length + 260);
+    setTimeout(() => { box.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" }).finished.then(() => box.remove()).catch(() => box.remove()); if (alive()) img.style.visibility = "visible"; }, per * XE.length + 520);
+  });
+}
+function enemyEl() {
+  if (G.aed) return aedEl();
+  const E = ENEMIES[G.en || 0];
+  const wrap = el("div", "enemy-wrap i" + (G.en || 0));
+  wrap.style.height = E.h + "%";
+  wrap.style.aspectRatio = String(E.ar);
+  if (G.mode === "tutorial") wrap.style.bottom = "12%"; // チュートリアルは、手前の黄色とオレンジの地面に立たせる
+  const img = document.createElement("img");
+  img.className = "enemy"; img.src = E.src; img.alt = E.alt; img.draggable = false;
+  wrap.appendChild(img);
+  if (!img.complete && G.state === "ask" && G.en !== 11) { // まだ読み込み中。出てくるまで問題を隠しておく
+    const root = document.documentElement, gg = G;
+    root.classList.add("evintro");
+    const done = () => { root.classList.remove("evintro"); };
+    img.addEventListener("load", done); img.addEventListener("error", done); setTimeout(done, 2500);
+  }
+  if (G.state === "ask" && G.bgNew) { const bn = G.bgNew; G.bgNew = false; if (G.en !== 9 && G.en !== 11 && G.en !== 12 && G.en !== 19) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "つぎの エリアへ!"); Bgm.sfx("scene"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 1600); } }); }
+  const reduce = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const can = !reduce && typeof img.animate === "function";
+  if (G.state === "fb" && G.lastOk && isBossEn(G.en) && G.bossHp > 0) { // ボスはまだ倒れない: ダメージを受けて、ぐらっとのけぞる
+    if (!G.played && can) {
+      G.played = true;
+      img.animate([
+        { transform: "translate(0,0) rotate(0deg)", filter: "brightness(1)" },
+        { transform: "translate(-4%,0) rotate(-3deg)", filter: "brightness(3.5) saturate(2)", offset: .2 },
+        { transform: "translate(4%,0) rotate(3deg)", filter: "brightness(2.5)", offset: .4 },
+        { transform: "translate(-2%,0) rotate(-1deg)", filter: "brightness(1.6)", offset: .65 },
+        { transform: "translate(0,0) rotate(0deg)", filter: "brightness(1)" }
+      ], { duration: 700, easing: "ease-out" });
+      burst(wrap, { colors: ["#ffd34d", "#ffffff", "#ff8a2a"], n: 10, size: [5, 10], dist: [30, 80], dur: 500, at: 80, shape: "square" });
+      Bgm.sfx("hit");
+    }
+  } else if (G.state === "fb" && G.lastOk) {
+    img.style.opacity = "0"; // 撃退ずみ
+    if (!G.played && can) {
+      G.played = true;
+      img.style.opacity = "";
+      const R = REPEL[G.en || 0] || REPEL[0];
+      if (R.origin) img.style.transformOrigin = R.origin;
+      img.animate(R.frames, { duration: R.dur, easing: R.ease, fill: "forwards" });
+      burst(wrap, FX[G.en || 0]);
+      if (G.en === RARE_EN) setTimeout(() => { const sc = wrap.parentElement; if (wrap.isConnected && sc) { evBanner(sc, "ラッキー! 看板ゾンビを たおした!"); Bgm.sfx("win"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 1800); } }, 900);
+    }
+  } else if (G.state === "fb" && can && !G.played && G.en === 9) {
+    G.played = true;
+    noodleAttack(wrap, img);
+  } else if (G.state === "fb" && can && !G.played && G.en === 11) {
+    G.played = true;
+    ebiPounce(wrap, img);
+  } else if (G.state === "fb" && can && !G.played) {
+    G.played = true;
+    if (G.en === 10) ojiThrow(wrap);
+    img.animate([
+      { transform: "translate(0, 0) scale(1)", offset: 0 },
+      { transform: "translate(0, -8%) scale(0.92)", offset: 0.3 },
+      { transform: "translate(0, 52%) scale(1.4)", offset: 0.55 },
+      { transform: "translate(0, 52%) scale(1.4)", offset: 0.65 },
+      { transform: "translate(0, 0) scale(1)", offset: 1 }
+    ], { duration: 800, easing: "ease-in-out" });
+  } else if (G.state === "ask" && G.appear && G.en === 11 && can) {
+    G.appear = false;
+    ebiIntro(wrap);
+  } else if (G.state === "ask" && G.appear) {
+    G.appear = false;
+    if (G.en === 10 && can) ojiEntrance(wrap);
+    if (G.en === 9) Bgm.sfx("thump");
+    if (G.en === RARE_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "ラッキー! 激レア 看板ゾンビ!"); Bgm.sfx("chime"); burst(wrap, { colors: ["#ffd34d", "#ffffff", "#ffb84d"], n: 20, size: [14, 24], dist: [40, 120], dur: 1100, at: 0, shape: "star", up: true }); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2600); } });
+    if (G.en === 12 || G.en === 19) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, G.en === 19 ? "ラスボスが あらわれた!" : "ボスが あらわれた!"); Bgm.sfx("boom"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } });
+    if (can) img.animate([
+      { transform: "translate(0, -25%) scale(0.5)", opacity: 0 },
+      { transform: "translate(0, 0) scale(1)", opacity: 1 }
+    ], { duration: 380, easing: "ease-out" });
+  }
+  return wrap;
+}
+
+let wasGame = false, entered = false;
+function render() {
+  const root = $("#play");
+  root.replaceChildren();
+  // ゲーム中は、上のタイトルを隠して画面を広く使う。ホームに戻ると出る
+  document.querySelector("header").hidden = !!G;
+  if (!G || G.state !== "ask") document.documentElement.classList.remove("evintro");
+  const playing = !!G && (G.state === "ask" || G.state === "fb");
+  document.documentElement.classList.toggle("playing", playing);
+  Bgm.scene(G ? "dungeon" : opRunning ? "main" : "home");
+  if (entered) { $("#board").hidden = playing; $("#notice").hidden = !!G && G.state !== "end"; }
+  if (!!G !== wasGame) { wasGame = !!G; window.scrollTo({ top: 0 }); }
+  if (!G) {
+    if (view === "settings") renderSettings(root);
+    else if (view === "qadd") renderQAdd(root);
+    else if (view === "zukan") renderZukan(root);
+    else if (view === "name") renderName(root);
+    else renderHome(root);
+  }
+  else if (G.state === "intro") renderIntro(root);
+  else if (G.state === "tutdone") renderTutDone(root);
+  else if (G.state === "end") renderEnd(root);
+  else renderGame(root);
+  updateMyRate();
+  drawScene();
+}
+
+function renderHome(root) {
+  const top = el("div", "home-top");
+  const gear = el("button", "btn sub small", "⚙ 設定");
+  gear.type = "button";
+  gear.onclick = () => { view = "settings"; render(); };
+  top.appendChild(gear);
+  root.appendChild(top);
+
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", null, "ダンジョンに挑戦"));
+  if (myName) b.appendChild(el("p", "myname", "なまえ: " + myName));
+  const mr = el("p", "myrate");
+  mr.id = "myrate"; mr.hidden = true;
+  b.appendChild(mr);
+
+  const tut = el("button", tutorialDone ? "btn sub" : "btn", tutorialDone ? "チュートリアルをもう一度" : "▶ チュートリアルを始める");
+  tut.type = "button";
+  tut.onclick = () => { G = { mode: "tutorial", state: "intro", qi: 0, hp: HP_MAX, opts: null, picked: -1 }; render(); };
+  b.appendChild(tut);
+
+  const modes = el("div", "modes");
+  MODE_KEYS.forEach((k) => {
+    const m = MODES[k];
+    const wrap = el("div", "mode");
+    const open = isUnlocked(k);
+    const btn = el("button", k === "rate" ? "btn" : "btn sub", open ? "▶ " + m.name : m.name + "(未解放)");
+    btn.type = "button";
+    btn.disabled = !open;
+    btn.onclick = () => startMode(k);
+    wrap.appendChild(btn);
+    wrap.appendChild(el("p", "locked", open ? m.desc : lockText(k)));
+    modes.appendChild(wrap);
+  });
+  b.appendChild(modes);
+
+  const n = noteText();
+  if (n) b.appendChild(el("p", "note", n));
+  root.appendChild(b);
+}
+
+function renderName(root) {
+  root.appendChild(sceneCanvas());
+  const form = document.createElement("form");
+  form.className = "box stack";
+  form.appendChild(el("h2", null, "なまえを決めよう"));
+  form.appendChild(el("p", "note", "ゲームを始める前に、ランキングに表示する名前を入れてください。あとから設定で変えられます。"));
+  const f = el("div", "field");
+  const lab = el("label", null, "なまえ");
+  lab.htmlFor = "nick";
+  const inp = document.createElement("input");
+  inp.id = "nick"; inp.type = "text"; inp.maxLength = 12; inp.placeholder = "例: たろう"; inp.autocomplete = "nickname";
+  f.append(lab, inp);
+  form.appendChild(f);
+  const err = el("p", "err", "なまえを入れてください。");
+  err.hidden = true;
+  err.setAttribute("role", "alert");
+  form.appendChild(err);
+  const row = el("div", "row-btns");
+  const go = el("button", "btn", pendingMode ? "▶ 決定して" + MODES[pendingMode].name + "へ" : "▶ 決定");
+  go.type = "submit";
+  const back = el("button", "btn sub", "ホームに戻る");
+  back.type = "button";
+  back.onclick = () => { pendingMode = null; view = "home"; render(); };
+  row.append(go, back);
+  form.appendChild(row);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = inp.value.trim().slice(0, 12);
+    if (!v) { err.hidden = false; inp.focus(); return; }
+    setName(v);
+    const m = pendingMode;
+    pendingMode = null;
+    view = "home";
+    if (m && isUnlocked(m)) startMode(m); else render();
+  });
+  root.appendChild(form);
+}
+
+function renderIntro(root) {
+  root.appendChild(sceneCanvas());
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", null, "チュートリアル"));
+  const ul = el("ul", "rules");
+  [
+    "HPは5つ。不正解になるとHPが1つ減ります。",
+    "HPの回復はありません。0になるとそこで終了です。",
+    "全問を抜ければクリア。中級、上級、レート戦の順に解放されます。",
+    "レート戦では、正解1問ごとに100レート。1回の挑戦での最高レートでランキングを競います。"
+  ].forEach((t) => ul.appendChild(el("li", null, t)));
+  b.appendChild(ul);
+  b.appendChild(el("p", "note", "ここでは練習です。HPが減っても記録には残りません。"));
+  const go = el("button", "btn", "▶ 練習を始める");
+  go.type = "button";
+  go.onclick = () => { G.state = "ask"; G.en = 0; G.appear = true; render(); };
+  b.appendChild(go);
+  root.appendChild(b);
+}
+
+function curQ() { return G.aed ? AEDQ[G.aed.i] : G.mode === "tutorial" ? TUT[G.qi] : G.qs[G.qi]; }
+
+function renderGame(root) {
+  const q = curQ();
+  if (!G.opts) G.opts = shuffle(q.c.map((t, k) => ({ t, ok: k === q.a })));
+  const tut = G.mode === "tutorial";
+  const fbState = G.state === "fb";
+
+  // 場面(高さは画面に合わせて伸び縮みする)
+  const sc = sceneCanvas(fbState && !G.lastOk ? "hit game" : "game");
+  sc.appendChild(enemyEl());
+  // 左上: ダンジョンの進捗 / 右上: なまえ / 右下: 体力
+  const tl = el("div", "box ov tl");
+  if (tut) { tl.appendChild(el("div", null, "チュートリアル")); tl.appendChild(el("div", null, "練習 " + (G.qi + 1) + " / " + TUT.length)); }
+  else if (G.aed) { tl.appendChild(el("div", null, "蘇生チャレンジ")); tl.appendChild(el("div", null, "もんだい " + (G.aed.i + 1) + " / " + AEDQ.length)); }
+  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9) tl.appendChild(el("div", "tagst", "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
+  const tr = el("div", "box ov tr");
+  tr.appendChild(el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"));
+  const br = el("div", "box ov br");
+  br.appendChild(el("span", null, "HP " + Math.max(0, G.hp) + "/" + maxHp(G.mode)));
+  const hs = el("div", "hearts");
+  for (let i = 0; i < maxHp(G.mode); i++) hs.appendChild(heart(i < G.hp));
+  br.appendChild(hs);
+  sc.append(tl, tr, br);
+  if (isBossEn(G.en) && !G.aed) { // ボスの体力(中級ボス3 / 裏ボス5 / ラスボス5)
+    const bb = el("div", "bossbar"); bb.appendChild(el("span", null, "ボス"));
+    for (let i = 0; i < G.bossMax; i++) bb.appendChild(el("i", i < G.bossHp ? "" : "off"));
+    sc.appendChild(bb);
+  }
+  root.appendChild(sc);
+
+  // 問題。答えたあとは、同じ場所が結果と解説に変わる(高さが変わらないので、演出が見やすい)
+  const talking = !!G.talk;
+  const qb = el("div", "box qbox" + (talking ? " talk" : fbState ? (G.lastOk ? " ok" : " ng") : ""));
+  if (talking) {
+    qb.appendChild(el("p", "q", G.talk.lines[G.talk.i]));
+    qb.appendChild(el("div", "tapnext", "▼ タップでつぎへ"));
+    qb.onclick = talkAdvance; UI.saved = null;
+  } else if (fbState) {
+    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : "不正解… HPが1つ減った"));
+    if (q.e) qb.appendChild(el("div", "exp", q.e));
+  } else {
+    if (G.aed) qb.appendChild(el("div", "qno", "蘇生問題 — 3問正解で体力が" + AED_HEAL + "回復"));
+    else if (!tut) qb.appendChild(el("div", "qno", "連続正解 " + G.streak));
+    qb.appendChild(el("p", "q", "Q. " + q.q));
+  }
+  root.appendChild(qb); UI.qb = qb;
+
+  const list = el("div", "opts"); UI.list = list;
+  if (talking) list.style.visibility = "hidden";
+  G.opts.forEach((o, k) => {
+    const b = el("button", "opt");
+    b.type = "button";
+    b.appendChild(el("span", "lab", LABELS[k] + "."));
+    b.appendChild(el("span", "txt", o.t));
+    if (fbState) {
+      b.disabled = true;
+      if (o.ok) b.classList.add("ok");
+      else if (k === G.picked) b.classList.add("ng");
+      else b.classList.add("dim");
+      if (o.ok) b.appendChild(el("span", "txt", "  ○"));
+      else if (k === G.picked) b.appendChild(el("span", "txt", "  ✕"));
+    } else b.onclick = () => pick(k);
+    list.appendChild(b);
+  });
+  root.appendChild(list);
+
+  // 「つぎへ」の場所は、答える前から空けておく(場面の大きさが変わらないように)
+  const slot = el("div", "nxslot"); UI.slot = slot;
+  if (fbState && !talking) {
+    const canAed = G.mode === "rate" && !G.aedDone && !G.aed; // 体力0でも、回復キャラが助けに来る
+    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0))));
+    const nx = el("button", "btn", G.aed && G.lastOk ? (G.aed.i >= AEDQ.length - 1 ? "▶ 体力を回復する!" : "▶ つぎの蘇生問題へ") : finalQ ? "▶ 結果を見る" : "▶ つぎへ");
+    nx.type = "button";
+    nx.onclick = next;
+    slot.appendChild(nx);
+  }
+  root.appendChild(slot);
+}
+
+function renderTutDone(root) {
+  root.appendChild(sceneCanvas());
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", null, "チュートリアル完了!"));
+  b.appendChild(el("p", null, "中級に挑戦できます。HPは5つ、回復はありません。"));
+  const row = el("div", "row-btns");
+  const go = el("button", "btn", "▶ 中級に挑戦");
+  go.type = "button";
+  go.onclick = () => startMode("chu");
+  const home = el("button", "btn sub", "ホームに戻る");
+  home.type = "button";
+  home.onclick = () => { G = null; view = "home"; render(); };
+  row.append(go, home);
+  b.appendChild(row);
+  root.appendChild(b);
+}
+
+// 敵のセリフ: 問題欄をセリフ表示に切り替える。場面は作り直さない(演出が途切れない)
+const UI = { qb: null, list: null, slot: null, saved: null, cls: "" };
+function talkAdvance() {
+  const t = G && G.talk; if (!t || Date.now() - t.t0 < 350) return;
+  t.i++; t.t0 = Date.now();
+  if (t.i < t.lines.length) { const p = UI.qb && UI.qb.querySelector("p.q"); if (p) p.textContent = t.lines[t.i]; return; }
+  const after = t.after; G.talk = null;
+  if (after) { after(); return; }
+  if (UI.saved && UI.qb && UI.qb.isConnected) { // 元の表示に戻す
+    UI.qb.className = UI.cls; UI.qb.onclick = null; UI.qb.replaceChildren(...UI.saved); UI.saved = null;
+    if (UI.list) UI.list.style.visibility = ""; if (UI.slot) UI.slot.style.visibility = "";
+  } else render();
+}
+function talkStart(lines) {
+  G.talk = { lines: lines, i: 0, t0: Date.now() };
+  if (!UI.qb || !UI.qb.isConnected) { render(); return; }
+  UI.saved = Array.from(UI.qb.childNodes); UI.cls = UI.qb.className;
+  UI.qb.className = "box qbox talk"; UI.qb.onclick = talkAdvance;
+  UI.qb.replaceChildren(el("p", "q", lines[0]), el("div", "tapnext", "▼ タップでつぎへ"));
+  if (UI.list) UI.list.style.visibility = "hidden"; if (UI.slot) UI.slot.style.visibility = "hidden";
+}
+function renderEnd(root) {
+  const sc = sceneCanvas();
+  if (!G.cleared) sc.appendChild(enemyEl()); // ゲームオーバーでは敵が残る
+  root.appendChild(sc);
+  const m = MODES[G.mode];
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", "verdict " + (G.cleared ? "clear" : "over"), G.cleared ? m.name + "クリア!" : "ゲームオーバー"));
+  if (G.lostToNod) b.appendChild(el("p", "pawa", "「俺のパワハラは止まらんえぇ〜」"));
+  if (G.mode === "rate" && runTier(G) > 0) {
+    const t = runTier(G);
+    const tb = el("div", "titlebox");
+    tb.appendChild(el("small", null, "獲得した称号"));
+    tb.appendChild(el("span", t === TOP_TIER ? "rainbow" : null, TITLES[t]));
+    if (t === TOP_TIER) { const nmx = el("div", "rainbow", myName || "あなた"); tb.appendChild(nmx); }
+    b.appendChild(tb);
+  }
+  const s = el("div", "bigstat");
+  s.append(el("span", "n", String(G.correct)), el("span", null, "/ " + G.answered + "問 正解"));
+  b.appendChild(s);
+  const dl = el("dl", "kv");
+  const add = (k, v) => { dl.appendChild(el("dt", null, k)); dl.appendChild(el("dd", null, v)); };
+  if (G.mode === "rate") {
+    add("今回のレート", ((G.correct - (G.nodCorrect || 0)) * RATE_PER_CORRECT).toLocaleString("en-US") + (G.nodDone ? "(裏ボス戦は数えません)" : ""));
+    if (G.total != null) add("自己ベストのレート", G.total.toLocaleString("en-US") + (G.newBest ? "(更新!)" : ""));
+  }
+  add("今回の正答率", G.answered ? Math.round(G.correct / G.answered * 100) + "%" : "-");
+  add("最大の連続正解", G.maxStreak + "問");
+  add("答えた問題", G.answered + " / " + G.qs.length);
+  add("のこりHP", Math.max(0, G.hp) + " / " + maxHp(G.mode));
+  b.appendChild(dl);
+  if (G.cleared && m.next) b.appendChild(el("p", "ok-msg", "「" + MODES[m.next].name + "」が解放されました!"));
+  let text = "";
+  if (G.mode === "rate") {
+    if (G.save === "saving") text = "ランキングに登録しています…";
+    else if (G.save === "saved") text = (G.newBest ? "自己ベストを更新しました。ランキングに反映しました。" : "ランキングに反映しました。ランキングは1回の挑戦での最高記録です。");
+    else if (G.save === "failed") text = "ランキングへの登録に失敗しました。時間をおいて、もう一度挑戦してください。";
+    else text = noteText();
+  } else text = "ランキングの対象は、レート戦だけです。";
+  if (text) b.appendChild(el("p", "note", text));
+  const row = el("div", "row-btns");
+  if (G.cleared && m.next) {
+    const nx = el("button", "btn", "▶ " + MODES[m.next].name + "に挑戦");
+    nx.type = "button";
+    nx.onclick = () => startMode(m.next);
+    row.appendChild(nx);
+  }
+  const again = el("button", G.cleared && m.next ? "btn sub" : "btn", "もう一回挑戦");
+  again.type = "button";
+  again.onclick = () => startMode(G.mode);
+  const see = el("button", "btn sub", "ランキングを見る");
+  see.type = "button";
+  see.onclick = () => $("#board").scrollIntoView({ behavior: "smooth" });
+  const home = el("button", "btn sub", "ホームに戻る");
+  home.type = "button";
+  home.onclick = () => { G = null; view = "home"; render(); };
+  row.append(again, see, home);
+  b.appendChild(row);
+  root.appendChild(b);
+}
+
+// ================= ゲーム進行 =================
+function startMode(mode) {
+  if (!isUnlocked(mode)) return;
+  if (!myName) { G = null; pendingMode = mode; view = "name"; render(); return; }
+  G = { mode: mode, qs: buildRunQuestions(mode), en: enemyIdx(mode), appear: true, played: false, flash: false, state: "ask", qi: 0, hp: maxHp(mode), aed: null, aedDone: false, answered: 0, correct: 0, streak: 0, maxStreak: 0, opts: null, picked: -1, lastOk: false, cleared: false, save: "", lock: false, evAt: -1, bossHp: 0, bossMax: 3, bossStarted: false, rareDone: false, nodCorrect: 0, nodAnswered: 0, kills: 0, bgi: 0, bgNew: false, nodDone: false, nodPhase: false, evDone: false };
+  // イベント戦(おじさん→エビサンダル→おじさん)を、上級とレート戦の途中の連続2問に入れる
+  if (Math.random() < RARE_P) { G.en = RARE_EN; G.rareDone = true; }
+  if (mode === "rate") G.evAt = 2 + Math.floor(Math.random() * (MODES[mode].len - MODES[mode].boss.hp - 6)); // ラスボス戦に入る前に収まる位置
+  if (mode === "rate") preloadAed();
+  view = "home";
+  render();
+  window.scrollTo({ top: 0 });
+}
+function pick(k) {
+  if (G.lock || G.talk) return;
+  const ok = G.opts[k].ok;
+  if (G.aed) { G.picked = k; G.lastOk = ok; G.state = "fb"; G.played = false; G.flash = false; render(); return; } // 蘇生問題は、成績に数えない
+  G.picked = k; G.lastOk = ok; G.state = "fb"; G.played = false; G.flash = false;
+  if (!ok) {
+    const g = G;
+    setTimeout(() => { if (G === g && g.state === "fb") { g.flash = true; drawScene(); } }, 380); // 飛びかかりが当たる瞬間に赤くする
+  }
+  if (G.mode !== "tutorial") {
+    G.answered++;
+    if (G.en === 9) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
+    if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
+    else { G.hp--; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
+  } else if (!ok) G.hp--;
+  render();
+}
+function next() {
+  if (G.mode === "tutorial") {
+    if (G.qi < TUT.length - 1) { G.qi++; G.state = "ask"; G.opts = null; G.picked = -1; G.appear = true; G.played = false; G.flash = false; render(); window.scrollTo({ top: 0 }); }
+    else finishTutorial();
+    return;
+  }
+  if (G.aed) { aedNext(); return; }
+  if (G.hp <= 0) { if (G.mode === "rate" && !G.aedDone) { startAed(); return; } endRun(false); return; }
+  G.qi++;
+  const B = MODES[G.mode].boss;
+  if (B && B.until && G.bossStarted && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ラスボスは、倒すまで問題が続く
+  if (G.qi >= G.qs.length) { endRun(true); return; }
+  G.state = "ask"; G.opts = null; G.picked = -1; G.lock = false;
+  G.en = enemyIdx(G.mode); G.appear = true; G.played = false; G.flash = false;
+  if (G.mode === "rate") { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
+  if (!G.evDone && G.qi === G.evAt) G.en = 11; else if (!G.evDone && G.qi === G.evAt + 1) { G.en = 10; G.evDone = true; } // おじさんは、1回の挑戦で1回だけ
+  if (!G.rareDone && G.en !== 10 && G.en !== 11 && Math.random() < RARE_P) G.en = RARE_EN; // 激レア(ボス・裏ボス・おじさんの場面では、あとで上書きされて出ない)
+  const bossZone = () => !!B && (G.bossStarted || G.qi >= G.qs.length - B.hp);
+  if (G.mode === "rate") { // 裏ボス(ヌードルモンスター): 自分の体力が1になったとき、ラスボス戦の前に1回だけ現れる。体力5(5回正解で撃破)
+    if (G.nodPhase && G.bossHp <= 0) G.nodPhase = false;
+    if (G.nodPhase) { G.en = 9; G.appear = false; }
+    else if (G.hp === 1 && !G.nodDone && G.en !== 10 && G.en !== 11 && !bossZone()) {
+      G.nodDone = true; G.nodPhase = true; G.bossHp = 5; G.bossMax = 5; G.en = 9; G.appear = true;
+      G.talk = { lines: [(myName || "あなた") + "君 ちょっとこっち来てもらってもいい?"], i: 0, t0: Date.now() };
+      const tail = (!G.evDone && G.evAt >= G.qi) ? 2 : 0; // おじさんの2問ぶん
+      const need = 5 + tail + (B ? B.hp : 0) - (G.qs.length - G.qi); // 裏ボス5問 + (おじさん) + ラスボスの問題を確保する
+      if (need > 0) extendQs(need);
+      if (!G.evDone && G.evAt >= G.qi) G.evAt = G.qi + 5; // おじさんは、裏ボスのあとへ
+    }
+  }
+  if (B && !G.nodPhase && bossZone()) { // ボス戦
+    G.en = B.en;
+    if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
+  }
+  if (G.en === RARE_EN) G.rareDone = true;
+  render();
+  window.scrollTo({ top: 0 });
+}
+// ---- 回復キャラ(AED) ----
+function startAed() {
+  G.aedDone = true; G.aed = { i: 0 };
+  G.state = "ask"; G.opts = null; G.picked = -1; G.played = false; G.flash = false; G.appear = true; G.lock = false;
+  G.talk = { lines: ["…ピピッ! たおれた あなたを はっけん! わたしは AED!", "「蘇生問題」に 3問 こたえられたら、体力を " + AED_HEAL + "つ 回復するよ!", "ただし、1問でも まちがえたら ゲームオーバー。しんちょうに こたえてね!"], i: 0, t0: Date.now() };
+  render(); window.scrollTo({ top: 0 });
+}
+function aedNext() {
+  const a = G.aed;
+  if (!G.lastOk) { endRun(false); return; } // 1問でも失敗したらゲームオーバー
+  if (a.i < AEDQ.length - 1) { a.i++; G.state = "ask"; G.opts = null; G.picked = -1; G.played = false; G.flash = false; G.appear = false; render(); window.scrollTo({ top: 0 }); return; }
+  G.hp = Math.min(maxHp(G.mode), G.hp + AED_HEAL); a.cele = true; Bgm.sfx("win"); // 蘇生成功: 体力が回復して、たたかいの続きへ
+  G.state = "ask"; G.opts = null; G.picked = -1; G.played = false;
+  G.talk = { lines: ["やったね! 体力が " + AED_HEAL + "つ 回復したよ!", "さあ、たたかいの つづきへ いこう!"], i: 0, t0: Date.now(), after: () => { G.aed = null; next(); } };
+  render();
+}
+function aedEl() {
+  const A = G.aed, g = G;
+  const wrap = el("div", "enemy-wrap i1 aedwrap");
+  wrap.style.height = "44%"; wrap.style.aspectRatio = "1";
+  const imgs = {};
+  Object.keys(AED_FR).forEach((k) => {
+    const f = AED_FR[k], im = document.createElement("img");
+    im.src = f[0]; im.alt = ""; im.draggable = false;
+    im.style.cssText = "position:absolute;left:50%;bottom:0;transform:translateX(-50%);display:none;max-width:none;width:auto;height:" + (f[2] / 232 * 100) + "%";
+    wrap.appendChild(im); imgs[k] = im;
+  });
+  const show = (k) => { Object.keys(imgs).forEach((n) => { imgs[n].style.display = n === k ? "block" : "none"; }); };
+  const alive = () => wrap.isConnected && G === g;
+  const idle = () => { const seq = ["id1", "id2", "id3", "id4", "id3", "id2"]; let i = 0; show(seq[0]); const iv = setInterval(() => { if (!alive()) { clearInterval(iv); return; } i = (i + 1) % seq.length; show(seq[i]); }, 240); };
+  if (G.state === "fb") show(G.lastOk ? "joy" : "dmg");
+  else if (A.cele) { show("joy"); requestAnimationFrame(() => { if (alive()) burst(wrap, { colors: ["#ff6f91", "#ffffff", "#ff3b5c", "#ffd34d"], n: 16, size: [8, 16], dist: [40, 120], dur: 1000, at: 0, shape: "star", up: true }); }); }
+  else if (G.appear) {
+    G.appear = false; Bgm.sfx("chime");
+    const seq = [["ap1", 420], ["ap2", 240], ["ap3", 240], ["ap4", 240]]; let t = 0;
+    show("ap1"); seq.forEach((p) => { setTimeout(() => { if (alive() && !(G.state === "fb")) show(p[0]); }, t); t += p[1]; });
+    setTimeout(() => { if (alive() && G.state === "ask" && !A.cele) idle(); }, t);
+  } else idle();
+  return wrap;
+}
+// 問題を n 問ふやす(まだ出ていない問題を優先。足りなければ、直近を除いてもう一度使う)
+function extendQs(n) {
+  const pool = poolFor(G.mode);
+  const used = new Set(G.qs.map((x) => x.q));
+  const recent = new Set(G.qs.slice(-10).map((x) => x.q));
+  let add = shuffle(pool.filter((x) => !used.has(x.q)));
+  if (add.length < n) add = add.concat(shuffle(pool.filter((x) => used.has(x.q) && !recent.has(x.q))));
+  if (add.length < n) add = add.concat(shuffle(pool.slice()));
+  G.qs = G.qs.concat(add.slice(0, n));
+}
+function finishTutorial() {
+  tutorialDone = true;
+  try { localStorage.setItem("quiz-tut", "1"); } catch (e) {}
+  saveProfile();
+  if (!myName) { G = null; pendingMode = "chu"; view = "name"; render(); return; }
+  G.state = "tutdone";
+  render();
+}
+function endRun(cleared) {
+  G.state = "end"; G.cleared = cleared; G.aed = null;
+  G.lostToNod = !cleared && G.en === 9; // ヌードルモンスターに負けたときだけ、あのセリフを出す
+  if (cleared && G.mode === "chu") { prog.chu = true; saveProg(); }
+  if (cleared && G.mode === "jo") { prog.jo = true; saveProg(); }
+  G.save = (G.mode === "rate" && canSave()) ? "saving" : "";
+  render();
+  window.scrollTo({ top: 0 });
+  if (G.mode === "rate") saveRun(G);
+}
+
+// ================= 設定と問題追加 =================
+function renderSettings(root) {
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", null, "設定"));
+  const f = el("div", "field");
+  const lab = el("label", null, "なまえを変える");
+  lab.htmlFor = "nick2";
+  const inp = document.createElement("input");
+  inp.id = "nick2"; inp.type = "text"; inp.maxLength = 12; inp.autocomplete = "nickname";
+  inp.value = myName;
+  f.append(lab, inp);
+  b.appendChild(f);
+  const msg = el("p", "note");
+  msg.hidden = true;
+  const save = el("button", "btn", "なまえを保存");
+  save.type = "button";
+  save.onclick = () => {
+    const v = inp.value.trim().slice(0, 12);
+    if (!v) { msg.textContent = "なまえを入れてください。"; msg.className = "err"; msg.hidden = false; return; }
+    setName(v);
+    msg.textContent = "保存しました。"; msg.className = "ok-msg"; msg.hidden = false;
+  };
+  b.append(save, msg);
+  const bg = el("button", "btn sub", "BGM: " + (Bgm.isOn() ? "ON" : "OFF"));
+  bg.type = "button";
+  bg.onclick = () => { Bgm.toggle(); bg.textContent = "BGM: " + (Bgm.isOn() ? "ON" : "OFF"); };
+  b.appendChild(bg);
+  const vb = el("div", "volbox");
+  const vl = el("label", null, "BGMの音量 " + Bgm.getVol() + "%");
+  vl.htmlFor = "bgmvol";
+  const vr = document.createElement("input");
+  vr.id = "bgmvol"; vr.type = "range"; vr.min = "0"; vr.max = "100"; vr.step = "5"; vr.value = String(Bgm.getVol());
+  vr.oninput = () => { Bgm.setVol(+vr.value); vl.textContent = "BGMの音量 " + Bgm.getVol() + "%"; };
+  vb.append(vl, vr);
+  b.appendChild(vb);
+  const zb = el("button", "btn sub", "敵キャラ図鑑");
+  zb.type = "button";
+  zb.onclick = () => { view = "zukan"; render(); };
+  b.appendChild(zb);
+  const qb = el("button", "btn sub", "問題を追加する");
+  qb.type = "button";
+  qb.onclick = () => { view = "qadd"; render(); };
+  const back = el("button", "btn sub", "ホームに戻る");
+  back.type = "button";
+  back.onclick = () => { view = "home"; render(); };
+  b.append(qb, back);
+  root.appendChild(b);
+}
+
+const IDLE_DESC = ["ぷるぷる弾む", "ふわふわ浮かぶ", "ゆらゆら揺れる", "ぴょんぴょん跳ねる", "ぶるぶる震える", "ドクドク脈打つ", "ぐらぐら揺れる", "ドスンと足踏みする", "ゆっくり左右に揺れる", "ゆらゆら揺れる", "ゆらゆら揺れる", "ぷるぷる弾む", "ゆっくり脈打つように光る", "ドスンと足踏みする", "ふわふわ浮かぶ", "ゆらゆら揺れる", "ゆっくり脈打つ", "ぴょんぴょん跳ねる", "ふわふわ泳ぐ", "ゆらゆらうねる", "ふわふわ漂う"];
+const DEFEAT_DESC = ["ぺしゃんこになって弾ける", "回転して消える", "ばたりと倒れて星が出る", "キャンと飛んでいく", "ショートして爆発する", "回転しながら飛んでいく", "がたがた揺れて崩れる", "ひっくり返ってほこりが舞う", "木のようにゆっくり倒れる", "まっ赤に光って弾け飛ぶ", "ころんと転んで、笑いながら飛んでいく", "ぷるぷる震えて、水しぶきになる", "ひび割れが光って、崩れ落ちる", "ガタガタ震えて、ひっくり返って消える", "ひび割れて光り、崩れる", "ころんと転んで、笑いながら飛んでいく", "カチカチ震えて、爆発する", "ぱたんと倒れて、はね飛ぶ", "ぴちぴち跳ねて、水しぶきになる", "水しぶきをあげて、光って弾け飛ぶ", "ひらひら舞って、金色に光ってはじける"];
+function renderZukan(root) {
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", null, "敵キャラ図鑑"));
+  b.appendChild(el("p", "note", "いま登録されている敵の一覧です(" + ENEMIES.length + "体)。"));
+  ENEMIES.forEach((E, i) => {
+    const card = el("div", "zk");
+    const pic = el("div", "zk-pic");
+    const h = Math.min(70, Math.floor(116 / E.ar));
+    const w = el("div", "enemy-wrap i" + i);
+    w.style.height = h + "px"; w.style.aspectRatio = String(E.ar); w.style.bottom = "4px";
+    const im = document.createElement("img");
+    im.className = "enemy"; im.src = E.src; im.alt = E.alt; im.draggable = false;
+    w.appendChild(im); pic.appendChild(w);
+    const info = el("div", "zk-info");
+    info.appendChild(el("div", "zk-name", "No." + (i + 1) + " " + E.alt + (E.tag ? "(" + E.tag + ")" : "")));
+    const where = [];
+    if (i === 0) where.push("チュートリアル");
+    MODE_KEYS.forEach((k) => { if (MODES[k].enemies.indexOf(i) >= 0) where.push(MODES[k].name); });
+    info.appendChild(el("div", "detail", "出現: " + (E.where || where.join(" / "))));
+    info.appendChild(el("div", "detail", "待機: " + IDLE_DESC[i]));
+    info.appendChild(el("div", "detail", "撃破: " + DEFEAT_DESC[i]));
+    card.append(pic, info);
+    b.appendChild(card);
+  });
+  const back = el("button", "btn sub", "設定に戻る");
+  back.type = "button";
+  back.onclick = () => { view = "settings"; render(); };
+  b.appendChild(back);
+  root.appendChild(b);
+}
+
+function qAddAllowed() { return !!(db && uid && canWrite !== false && isAdmin()); }
+
+function renderQAdd(root) {
+  const b = el("div", "box stack");
+  const h2 = el("h2", null, "問題を追加する");
+  b.appendChild(h2);
+  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは管理者だけです。管理者になるには、このID「" + (uid || "") + "」を firebase-config.js の ADMIN_UIDS に書いて、firestore.rules にも同じIDを書いてください。"));
+  if (!qAddAllowed()) b.appendChild(el("p", "note", noteText() || "この表示では問題を追加できません。"));
+  const form = document.createElement("form");
+  form.className = "stack";
+  const fs = el("div", "field");
+  const ls = el("label", null, "ジャンル(レート戦には、すべてのジャンルの問題が出ます)");
+  ls.htmlFor = "q-genre";
+  const sel = document.createElement("select");
+  sel.id = "q-genre";
+  MODE_KEYS.forEach((k) => { const o = document.createElement("option"); o.value = k; o.textContent = MODES[k].name; sel.appendChild(o); });
+  fs.append(ls, sel);
+  const fq = el("div", "field");
+  const lq = el("label", null, "問題文");
+  lq.htmlFor = "q-text";
+  const ta = document.createElement("textarea");
+  ta.id = "q-text"; ta.rows = 3; ta.maxLength = 100;
+  fq.append(lq, ta);
+  const fc = el("div", "field");
+  fc.appendChild(el("label", null, "選択肢(正解の○を選んでください)"));
+  const ins = [];
+  for (let k = 0; k < 4; k++) {
+    const row = el("div", "choice");
+    const rd = document.createElement("input");
+    rd.type = "radio"; rd.name = "q-ans"; rd.value = String(k); rd.id = "q-ans" + k;
+    rd.setAttribute("aria-label", LABELS[k] + "が正解");
+    if (k === 0) rd.checked = true;
+    const t = document.createElement("input");
+    t.type = "text"; t.id = "q-c" + k; t.maxLength = 40; t.placeholder = "選択肢 " + LABELS[k];
+    row.append(rd, t);
+    fc.appendChild(row);
+    ins.push(t);
+  }
+  const fe = el("div", "field");
+  const le = el("label", null, "解説(なくてもOK)");
+  le.htmlFor = "q-e";
+  const ee = document.createElement("input");
+  ee.id = "q-e"; ee.type = "text"; ee.maxLength = 120;
+  fe.append(le, ee);
+  const st = el("p", "note");
+  st.hidden = true;
+  let editing = null;
+  const go = el("button", "btn", "▶ 追加する");
+  go.type = "submit";
+  go.disabled = !qAddAllowed();
+  const cancel = el("button", "btn sub", "編集をやめる");
+  cancel.type = "button"; cancel.hidden = true;
+  const resetForm = () => {
+    editing = null; h2.textContent = "問題を追加する"; go.textContent = "▶ 追加する"; cancel.hidden = true;
+    ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = "";
+    const r0 = form.querySelector("#q-ans0"); if (r0) r0.checked = true;
+  };
+  cancel.onclick = () => { resetForm(); st.hidden = true; };
+  qEditHook = (it) => { // 一覧の「編集」から呼ばれる。フォームに問題を読み込む
+    editing = it; sel.value = it.genre; ta.value = it.q;
+    ins.forEach((i, k) => { i.value = it.c[k]; });
+    const rr = form.querySelector("#q-ans" + it.a); if (rr) rr.checked = true;
+    ee.value = it.e || "";
+    h2.textContent = "問題を編集する"; go.textContent = "▶ 保存する"; cancel.hidden = false; st.hidden = true;
+    h2.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+  form.append(fs, fq, fc, fe, st, go, cancel);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const say = (t, bad) => { st.textContent = t; st.className = bad ? "err" : "ok-msg"; st.hidden = false; };
+    const q = ta.value.trim();
+    const cs = ins.map((i) => i.value.trim());
+    const chk = form.querySelector('input[name="q-ans"]:checked');
+    const a = chk ? Number(chk.value) : -1;
+    if (!q) { say("問題文を入れてください。", true); return; }
+    if (cs.some((c) => !c)) { say("選択肢を4つとも入れてください。", true); return; }
+    if (new Set(cs).size < 4) { say("同じ選択肢があります。", true); return; }
+    if (!(a >= 0 && a < 4)) { say("正解を選んでください。", true); return; }
+    go.disabled = true;
+    try {
+      if (editing) {
+        await qSet(editing.id, { genre: sel.value, q: q, c: cs, a: a, e: ee.value.trim() });
+        resetForm();
+        say("保存しました。次の挑戦から反映されます。", false);
+      } else {
+        await db.collection("questions").add({ genre: sel.value, q: q, c: cs, a: a, e: ee.value.trim(), by: uid, at: Date.now() });
+        say("追加しました。次の挑戦から出題されます。", false);
+        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = "";
+      }
+    } catch (x) { say((editing ? "保存" : "追加") + "に失敗しました。時間をおいて、もう一度試してください。", true); }
+    go.disabled = !qAddAllowed();
+  });
+  b.appendChild(form);
+  const h2l = el("h2", null, "追加ずみの問題"); h2l.id = "qcount";
+  b.appendChild(h2l);
+  const list = el("div", "stack");
+  list.id = "qlist";
+  b.appendChild(list);
+  const back = el("button", "btn sub", "設定に戻る");
+  back.type = "button";
+  back.onclick = () => { view = "settings"; render(); };
+  b.appendChild(back);
+  root.appendChild(b);
+  renderQList();
+}
+
+function renderQList() {
+  const list = document.getElementById("qlist");
+  if (!list) return;
+  list.replaceChildren();
+  const hc = document.getElementById("qcount"); if (hc) hc.textContent = "追加ずみの問題(" + extraQ.length + "問)";
+  const order = { chu: 0, jo: 1, rate: 2 };
+  const items = extraQ.slice().sort((a, b) => (order[a.genre] - order[b.genre]) || (a.at - b.at));
+  if (!items.length) { list.appendChild(el("p", "note", "まだ追加された問題はありません。")); return; }
+  items.forEach((it) => {
+    const row = el("div", "qitem");
+    const info = el("div", "qinfo");
+    info.appendChild(el("div", "tagst", MODES[it.genre].name));
+    info.appendChild(el("div", null, it.q));
+    info.appendChild(el("div", "detail", "正解: " + it.c[it.a]));
+    const ed = el("button", "btn small", "編集");
+    ed.type = "button"; ed.disabled = !qAddAllowed();
+    ed.onclick = () => { if (qEditHook) qEditHook(it); };
+    const del = el("button", "btn sub small", pendingDel === it.id ? "もう一度押すと削除" : "削除");
+    del.type = "button";
+    del.disabled = !qAddAllowed();
+    del.onclick = async () => {
+      if (pendingDel !== it.id) { pendingDel = it.id; renderQList(); return; }
+      pendingDel = null;
+      try { await qDel(it.id); } catch (e) {}
+      renderQList();
+    };
+    const btns = el("div", "qbtns"); btns.append(ed, del);
+    row.append(info, btns);
+    list.appendChild(row);
+  });
+}
+
+// ================= レート戦の記録(自分の行だけ書く) =================
+async function saveRun(run) {
+  if (!canSave()) return;
+  try {
+    const ref = db.doc("results/" + uid);
+    const snap = await ref.get();
+    const prev = snap.exists ? snap.data() : {};
+    const rc = run.correct - (run.nodCorrect || 0), ra = run.answered - (run.nodAnswered || 0); // 裏ボス戦の問題は、レートと正答率に数えない
+    const answered = (prev.answered || 0) + ra;
+    const correct = (prev.correct || 0) + rc;
+    const best = Math.max(prev.best || 0, rc);
+    const tier = Math.max(tierOf(prev), runTier(run));
+    localTier = Math.max(localTier, tier);
+    await ref.set({
+      name: myName,
+      correct: correct,
+      answered: answered,
+      rounds: (prev.rounds || 0) + 1,
+      clears: (prev.clears || 0) + (run.cleared ? 1 : 0),
+      best: best,
+      titleTier: tier ? tier + 20 : 0,
+      bestStreak: Math.max(prev.bestStreak || 0, run.maxStreak),
+      rate: answered ? correct / answered : 0,
+      rating: best * RATE_PER_CORRECT,
+      updatedAt: Date.now()
+    });
+    run.total = best * RATE_PER_CORRECT;
+    run.newBest = rc > (prev.best || 0);
+    run.save = "saved";
+  } catch (e) {
+    run.save = "failed";
+  }
+  if (G === run && G.state === "end") render();
+}
+
+// ================= ランキング =================
+function boardRow(r, rank) {
+  const li = el("li", "rw" + (r.id === uid ? " me" : "") + (rank <= 3 ? " top" : ""));
+  li.appendChild(el("span", "rk", String(rank)));
+  const who = el("div", "who");
+  const nm = el("div", "nm2");
+  nm.appendChild(el("span", tierOf(r) === TOP_TIER ? "rainbow" : null, String(r.name || "ななし").slice(0, 12)));
+  if (r.id === uid) nm.appendChild(el("span", "me-tag", "あなた"));
+  who.appendChild(nm);
+  if (tierOf(r)) who.appendChild(el("div", "ttl" + (tierOf(r) === TOP_TIER ? " rainbow" : ""), "称号: " + TITLES[tierOf(r)]));
+  const mt = el("div", "meter");
+  const bar = document.createElement("i");
+  const frac = rankBy === "rate" ? ratingOf(r) / topRating : Math.min(1, (r.bestStreak || 0) / MODES.rate.len);
+  bar.style.width = Math.max(0, Math.min(100, frac * 100)) + "%";
+  mt.appendChild(bar); who.appendChild(mt);
+  who.appendChild(el("div", "detail", "最高" + (r.best || 0) + "問正解 / " + (r.rounds || 1) + "回挑戦 / クリア" + (r.clears || 0) + "回"));
+  li.appendChild(who);
+  const big = el("span", "pct");
+  if (rankBy === "rate") { big.textContent = ratingOf(r).toLocaleString("en-US"); big.appendChild(el("small", null, " R")); }
+  else { big.textContent = String(r.bestStreak || 0); big.appendChild(el("small", null, "連続")); }
+  li.appendChild(big);
+  return li;
+}
+function renderBoard() {
+  const list = $("#rows");
+  list.replaceChildren();
+  const valid = rows.filter((r) => typeof r.rate === "number" && r.answered > 0);
+  const sorted = valid.sort(rankBy === "rate"
+    ? (a, b) => ratingOf(b) - ratingOf(a) || b.rate - a.rate || (a.updatedAt || 0) - (b.updatedAt || 0)
+    : (a, b) => (b.bestStreak || 0) - (a.bestStreak || 0) || b.rate - a.rate || (a.updatedAt || 0) - (b.updatedAt || 0));
+  $("#count").textContent = sorted.length ? sorted.length + "人が参加中" : "";
+  topRating = Math.max(1, ...sorted.map(ratingOf));
+  updateMyRate();
+  const empty = $("#empty");
+  if (sorted.length) empty.hidden = true;
+  else {
+    empty.hidden = false;
+    empty.textContent =
+      boardState === "loading" ? "ランキングを読み込んでいます。" :
+      boardState === "ready" ? "まだ誰もレート戦に挑戦していません。最初の1人になろう。" :
+      "ランキングを表示できません。このページを開き直してください。";
+  }
+  sorted.forEach((r, i) => { if (i < TOP_N || r.id === uid) list.appendChild(boardRow(r, i + 1)); });
+}
+function setTab(mode) {
+  rankBy = mode;
+  $("#tab-rate").setAttribute("aria-pressed", String(mode === "rate"));
+  $("#tab-streak").setAttribute("aria-pressed", String(mode === "streak"));
+  renderBoard();
+}
+$("#tab-rate").onclick = () => setTab("rate");
+$("#tab-streak").onclick = () => setTab("streak");
+
+// ================= 入場(合言葉はなし。最初のタップで音が鳴るように、タップしてはじめる画面を出す) =================
+function enterGame() {
+  $("#play").hidden = false;
+  $("#board").hidden = false;
+  entered = true;
+  render();
+  renderBoard();
+  init();
+  const op = $("#op");
+  if (!op) { startOpening(); return; }
+  op.hidden = false; op.replaceChildren();
+  const w = document.createElement("div"); w.className = "op-start"; w.textContent = "▶ タップしてはじめる";
+  op.appendChild(w);
+  ["enemy1.png", "op-pool.jpg", "op-h-right.png", "op-dragon.png"].forEach((u) => { const im = new Image(); im.src = u; });
+  let go = false;
+  const start = () => { if (go) return; go = true; op.onclick = null; startOpening(); };
+  op.onclick = start;
+}
+
+// ================= オープニング =================
+let opRunning = false;
+function startOpening() {
+  if (opRunning) return;
+  const op = $("#op");
+  if (!op) return;
+  opRunning = true;
+  setTimeout(preloadFx, 600);
+  op.hidden = false;
+  op.replaceChildren();
+  Bgm.scene("main");
+  Bgm.start();
+  Bgm.hush(true); // 水の中の間は、メロディを止めて水の音だけ
+  // 画像を先に読み込んでおく(戦闘で主人公の絵が間に合わず、いないように見えるのを防ぐ)
+  const preload = ["enemy1.png", "op-pool.jpg", "op-h-right.png", "op-atk-a.png", "op-atk-b.png", "op-atk-c.png", "op-dragon.png"].map((s) => { const i = new Image(); i.src = s; return i.decode ? i.decode().catch(() => {}) : Promise.resolve(); });
+  let dead = false, skipFn = null;
+  const sleepers = new Set();
+  const wait = (ms) => new Promise((res, rej) => { const id = setTimeout(() => { sleepers.delete(id); res(); }, ms); sleepers.add(id); skipFn = rej; });
+  const cancelAll = () => { dead = true; sleepers.forEach(clearTimeout); sleepers.clear(); if (skipFn) skipFn(new Error("skip")); };
+  const mk = (tag, cls, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; (parent || op).appendChild(e); return e; };
+  const img = (src, cls, parent) => { const e = mk("img", cls, parent); e.src = src; e.alt = ""; e.draggable = false; return e; };
+  const anim = (e, kf, opt) => e.animate(kf, Object.assign({ fill: "forwards" }, opt)).finished.catch(() => {});
+
+  // 水の中 → 水面
+  const pool = mk("div", "op-pool");
+  const uw = mk("div", "op-uw");
+  [8, 28, 52, 74].forEach((l, i) => { const r = mk("div", "op-ray", uw); r.style.left = l + "vw"; r.style.animationDelay = (-i * 0.7) + "s"; });
+  // 戦闘の画面(上下が黒い横長)
+  const band = mk("div", "op-band");
+  // 画面サイズから、戦闘の枠(4:3)を計算して直接指定する(端末によって比率指定が効かなくても崩れないように)
+  const fitBand = () => { const W = op.clientWidth || window.innerWidth, H = op.clientHeight || window.innerHeight; const w = Math.min(W, H * 4 / 3); band.style.width = w + "px"; band.style.height = (w * 3 / 4) + "px"; };
+  fitBand(); window.addEventListener("resize", fitBand);
+  mk("div", "bbg", band);
+  const stage = mk("div", "stage", band);
+  const cut = mk("div", "cutin", band);
+  mk("div", "spd", cut);
+  const bflash = mk("div", "op-flash", band);
+  // タイトル
+  const tt = mk("div", "tt");
+  const field = mk("div", "tt-field", tt);
+  const ttbg = mk("div", "tt-bg", field);
+  const tdrag = mk("div", "tt-drag", field);
+  const tdimg = img("op-dragon.png", "tt-dimg", tdrag);
+  const teye = mk("div", "tt-eye", tdrag);
+  const logo = mk("div", "tt-logo", field);
+  mk("span", "t1", logo).textContent = "うきうきわくわく";
+  mk("span", "t2", logo).textContent = "クエスト";
+  const ttop = mk("div", "tt-top", tt); mk("span", null, ttop).textContent = "▶ タップしてスタート";
+  const tbot = mk("div", "tt-bot", tt); tbot.textContent = "※公開情報のみを使用して作成しています";
+  const flash = mk("div", "op-flash");
+  const skip = { hidden: false, onclick: null }; // スキップは、画面をダブルタップ
+  const snd = mk("button", "op-btn op-snd"); snd.type = "button";
+  const sndLabel = () => { snd.textContent = Bgm.isOn() ? "♪ ON" : "♪ OFF"; };
+  sndLabel();
+  snd.onclick = (e) => { e.stopPropagation(); Bgm.toggle(); sndLabel(); };
+
+  const spark = (parent, x, y, color, n, spread) => {
+    for (let i = 0; i < n; i++) {
+      const s = mk("div", "sp", parent);
+      s.style.left = x + "%"; s.style.top = y + "%"; s.style.background = color;
+      const a = Math.random() * Math.PI * 2, d = (spread || 90) * (0.4 + Math.random() * 0.8);
+      anim(s, [{ transform: "translate(0,0) scale(1)", opacity: 1 }, { transform: "translate(" + Math.cos(a) * d + "px," + (Math.sin(a) * d - 16) + "px) scale(.3)", opacity: 0 }], { duration: 500 + Math.random() * 300, easing: "ease-out" }).then(() => s.remove());
+    }
+  };
+  const dust = (x) => { for (let i = 0; i < 5; i++) { const s = mk("div", "sp", stage); s.style.left = x + "%"; s.style.top = "88%"; s.style.background = "#fff"; s.style.borderRadius = "50%"; anim(s, [{ transform: "translate(0,0) scale(1)", opacity: .95 }, { transform: "translate(" + (Math.random() * 60 - 20) + "px," + (-8 - Math.random() * 18) + "px) scale(2.2)", opacity: 0 }], { duration: 450 + Math.random() * 200 }).then(() => s.remove()); } };
+  const finish = () => {
+    if (!opRunning) return;
+    opRunning = false;
+    Bgm.scene(G ? "dungeon" : "home");
+    Bgm.hush(false);
+    clearInterval(bubbleTimer);
+    cancelAll();
+    op.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, fill: "forwards" }).finished.then(() => { op.hidden = true; op.replaceChildren(); }).catch(() => { op.hidden = true; });
+  };
+  let lastTap = 0;
+  op.onpointerup = (ev) => { // ダブルタップでスキップ
+    if (ev.target && ev.target.closest && ev.target.closest(".op-snd")) return;
+    const t = Date.now();
+    if (t - lastTap < 420 && opRunning) { lastTap = 0; Bgm.sfx("tap"); finish(); return; }
+    lastTap = t;
+  };
+
+  const bubbleTimer = setInterval(() => {
+    if (dead) return;
+    const b = mk("div", "op-bub", uw), sz = 6 + Math.random() * 26;
+    b.style.width = b.style.height = sz + "px"; b.style.left = Math.random() * 100 + "vw";
+    if (Math.random() < .7) Bgm.sfx("bubble");
+    anim(b, [{ transform: "translateY(0)", opacity: .9 }, { transform: "translateY(-115vh) translateX(" + (Math.random() * 40 - 20) + "px)", opacity: .5 }], { duration: 1100 + Math.random() * 1200, easing: "ease-in" }).then(() => b.remove());
+  }, 60);
+
+  const whiteFlash = (el, ms, peak) => anim(el, [{ opacity: 0 }, { opacity: peak || 1, offset: .35 }, { opacity: 0 }], { duration: ms || 500 });
+
+  (async function seq() {
+    try {
+      // 1. 水の中を浮き上がり、水面を突き抜ける
+      Bgm.sfx("water");
+      Bgm.sfx("bubble");
+      await anim(uw, [{ opacity: 0 }, { opacity: 1 }], { duration: 600 });
+      await wait(1900);
+      pool.style.opacity = "1";
+      Bgm.sfx("splash");
+      whiteFlash(flash, 650);
+      await wait(260);
+      anim(uw, [{ transform: "translateY(0)" }, { transform: "translateY(100vh)" }], { duration: 700, easing: "ease-in" });
+      anim(pool, [{ transform: "scale(1.9)", filter: "brightness(.5)" }, { transform: "scale(1)", filter: "brightness(1)" }], { duration: 1100, easing: "cubic-bezier(.2,.8,.2,1)" });
+      await wait(1100);
+      clearInterval(bubbleTimer);
+      Bgm.hush(false);
+
+      await Promise.race([Promise.all(preload), new Promise((r) => setTimeout(r, 2500))]);
+      // 2. 白フラッシュ → 上下が黒い横長画面。向かい合う二人(引きの絵)
+      anim(flash, [{ opacity: 0 }, { opacity: 1, offset: .4 }, { opacity: 0 }], { duration: 520 });
+      await wait(200);
+      pool.style.display = "none"; uw.style.display = "none";
+      band.style.display = "block";
+      const hero = img("op-h-right.png", "c", stage); hero.style.cssText = "left:27%;bottom:4cqh;height:38cqh;width:auto";
+      const en = img("enemy1.png", "c", stage); en.style.cssText = "left:72%;bottom:4cqh;height:32cqh;width:auto";
+      const heroBob = hero.animate([{ transform: "translate(-50%,0)" }, { transform: "translate(-50%,-3%)" }, { transform: "translate(-50%,0)" }], { duration: 420, iterations: Infinity, easing: "steps(2,end)" });
+      const enIdle = en.animate([{ transform: "translate(-50%,0) scale(1,1)" }, { transform: "translate(-50%,0) scale(1.07,.93)" }, { transform: "translate(-50%,0) scale(1,1)" }], { duration: 600, iterations: Infinity });
+      await wait(1500);
+
+      // 3. オレンジのカットイン(顔のどアップ)
+      Bgm.sfx("whoosh");
+      cut.style.clipPath = "inset(0 0 0 0)";
+      await anim(cut, [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], { duration: 220, easing: "ease-out" });
+      const f2 = img("enemy1.png", "c", cut); f2.style.cssText = "left:50%;bottom:-42cqh;height:142cqh;width:auto;transform:translateX(-50%)";
+      anim(f2, [{ transform: "translateX(20%) scale(.8)" }, { transform: "translateX(-50%) scale(1)" }], { duration: 420, easing: "ease-out" });
+      anim(f2, [{ filter: "brightness(1)" }, { filter: "brightness(1.5)" }, { filter: "brightness(1)" }], { duration: 500, delay: 420 });
+      await wait(950);
+
+      // 4. 白フラッシュ → 戦闘(手前に自分の後ろ姿、奥から敵が突進)
+      whiteFlash(bflash, 450);
+      await wait(180);
+      heroBob.cancel(); enIdle.cancel();
+      cut.style.display = "none";
+      stage.replaceChildren();
+      // 主人公の攻撃モーション(3枚)。足もとを基準にそろえて切りかえる
+      const K = 0.064; // 元の画像1pxあたりのcqh(最初に歩いている主人公と、体の大きさがそろう値)
+      const FR = { a: { f: "op-atk-a.png", w: 612, h: 773, fx: 225 }, b: { f: "op-atk-b.png", w: 351, h: 795, fx: 181.5 }, c: { f: "op-atk-c.png", w: 577, h: 558, fx: 158 } };
+      const hw = mk("div", "hw", stage); hw.style.cssText = "left:24%;bottom:4cqh";
+      const frames = {};
+      Object.keys(FR).forEach((k) => { const d = FR[k], im = img(d.f, "hf", hw); im.style.cssText = "left:" + (-d.fx * K) + "cqh;height:" + (d.h * K) + "cqh;width:" + (d.w * K) + "cqh"; frames[k] = im; });
+      const pose = (k) => { Object.keys(frames).forEach((n) => { frames[n].style.display = n === k ? "block" : "none"; }); };
+      pose("a");
+      hw.style.opacity = "0";
+      const foe = img("enemy1.png", "c", stage); foe.style.cssText = "left:74%;bottom:5cqh;height:28cqh;width:auto";
+      const foeIdle = foe.animate([{ transform: "translate(-50%,0) scale(1,1)" }, { transform: "translate(-50%,-14%) scale(.96,1.05)" }, { transform: "translate(-50%,0) scale(1.06,.94)" }], { duration: 480, iterations: Infinity });
+      await wait(300);
+      // 主人公、登場(左からかけこんでくる)
+      Bgm.sfx("whoosh");
+      await anim(hw, [{ transform: "translateX(-70cqh)", opacity: 0 }, { transform: "translateX(0)", opacity: 1, offset: .8 }, { transform: "translateX(0)", opacity: 1 }], { duration: 420, easing: "ease-out" });
+      hw.style.opacity = "1";
+      dust(24); spark(stage, 24, 70, "#ffffff", 8, 40);
+      await wait(350);
+      for (let i = 0; i < 3; i++) {
+        foeIdle.pause();
+        Bgm.sfx("hurt");
+        dust(74);
+        await anim(foe, [{ transform: "translate(-50%,0)" }, { transform: "translate(-210%,-18%) scale(1.15)" , offset: .7 }, { transform: "translate(-225%,0) scale(1.1,.9)" }], { duration: 300, easing: "ease-in" });
+        spark(stage, 40, 62, "#ff6b6b", 8, 50);
+        anim(hw, [{ transform: "translateX(0)", filter: "brightness(1)" }, { transform: "translateX(-5cqh) rotate(-3deg)", filter: "brightness(2.4) sepia(1) saturate(7) hue-rotate(-35deg)" }, { transform: "translateX(2cqh)", filter: "brightness(1)" }, { transform: "translateX(0)" }], { duration: 320 });
+        anim(foe, [{ transform: "translate(-225%,0) scale(1.1,.9)" }, { transform: "translate(-50%,0) scale(1,1)" }], { duration: 380, easing: "ease-out" });
+        dust(42);
+        await wait(i === 2 ? 330 : 380);
+      }
+      // 5. 反撃! 主人公のこうげき → まぶしい白 → 敵はふっとぶ
+      Bgm.sfx("hit");
+      // 武器をふりかぶり、縦にたたき斬る
+      pose("b");
+      await anim(hw, [{ transform: "translateY(0)" }, { transform: "translateY(-3cqh)" }, { transform: "translateY(0)" }], { duration: 300, easing: "ease-out" });
+      Bgm.sfx("whoosh");
+      pose("c");
+      await anim(hw, [{ transform: "translateX(0)" }, { transform: "translateX(24cqh)" }], { duration: 200, easing: "cubic-bezier(.6,0,.9,.6)" });
+      Bgm.sfx("hit");
+      spark(stage, 68, 84, "#9fe0ff", 14, 90);
+      spark(stage, 70, 80, "#ffe14d", 20, 120);
+      Bgm.sfx("win");
+      whiteFlash(bflash, 650, 1);
+      await wait(260);
+      anim(foe, [{ transform: "translate(-50%,0) rotate(0deg) scale(1)", opacity: 1 }, { transform: "translate(120%,-170%) rotate(900deg) scale(.15)", opacity: 0 }], { duration: 750, easing: "cubic-bezier(.2,.6,.4,1)" });
+      // 勝利のポーズ(腕をあげた後ろ姿)
+      hw.getAnimations().forEach((x) => x.cancel());
+      hw.style.left = "28%";
+      pose("b");
+      anim(hw, [{ transform: "translateY(0)" }, { transform: "translateY(-5cqh)" }, { transform: "translateY(0)" }, { transform: "translateY(-5cqh)" }, { transform: "translateY(0)" }], { duration: 900 });
+      await wait(1500);
+      // 6. 白 → まっ暗
+      await anim(bflash, [{ opacity: 0 }, { opacity: 1 }], { duration: 420 });
+      await anim(band, [{ opacity: 1 }, { opacity: 0 }], { duration: 350 });
+      band.style.display = "none";
+      await wait(500);
+
+      // 7. まっ暗な中に「なにかいる」: 地鳴りと鼓動、闇に光る目 → 反転しながらシルエットが迫る
+      tt.style.display = "block";
+      tdrag.style.opacity = "1";
+      tdimg.style.filter = "brightness(0)";
+      await wait(450);
+      anim(teye, [{ opacity: 0 }, { opacity: 1 }], { duration: 700, easing: "ease-in" });
+      await wait(750);
+      anim(teye, [{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 500, iterations: 2 });
+      await wait(450);
+      await wait(300);
+      // 反転(ネガ)を高速でくりかえす。シルエットは白(反転すると黒)にして、どちらの画面でも形が見える
+      Bgm.sfx("boom");
+      tdimg.style.filter = "brightness(0) invert(1)";
+      const inv = (v) => ({ filter: "invert(" + v + ")" });
+      const flips = []; for (let i = 0; i < 18; i++) flips.push(inv(i % 2 ? 0 : 1));
+      anim(tt, flips, { duration: 760, easing: "steps(1, end)" });
+      anim(tdrag, [{ transform: "scale(.7) translateY(6%)" }, { transform: "scale(1.1) translateY(0)", offset: .6 }, { transform: "scale(1) translateY(0)" }], { duration: 900, easing: "cubic-bezier(.2,.9,.3,1.1)" });
+      anim(field, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((i) => ({ transform: "translate(" + ((i % 3 - 1) * (10 - i * .5)) + "px," + ((i % 2 ? 1 : -1) * (8 - i * .4)) + "px)" })).concat([{ transform: "translate(0,0)" }]), { duration: 900, easing: "steps(1, end)" });
+      await wait(850);
+      tdimg.style.filter = "brightness(.18)";
+      anim(tdrag, [{ transform: "translateY(0)" }, { transform: "translateY(-2.5%)" }, { transform: "translateY(0)" }], { duration: 2600, iterations: Infinity, easing: "ease-in-out" });
+      anim(teye, [{ opacity: 1 }, { opacity: .5 }, { opacity: 1 }], { duration: 900, iterations: Infinity });
+      await wait(500);
+      anim(ttop, [{ transform: "translateY(-110%)" }, { transform: "translateY(0)" }], { duration: 450, easing: "ease-out" });
+      await wait(250);
+      Bgm.sfx("whoosh");
+      await anim(ttbg, [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], { duration: 900, easing: "ease-in-out" });
+      await wait(500);
+      Bgm.sfx("chime");
+      anim(flash, [{ opacity: 0 }, { opacity: .9, offset: .3 }, { opacity: 0 }], { duration: 700 });
+      await wait(220);
+      teye.getAnimations().forEach((x) => x.cancel()); teye.style.opacity = "0";
+      tdimg.style.filter = "brightness(1) drop-shadow(0 0 14px rgba(255,255,255,.6))";
+      anim(tdimg, [{ filter: "brightness(.18)" }, { filter: "brightness(3)" }, { filter: "brightness(1) drop-shadow(0 0 14px rgba(255,255,255,.6))" }], { duration: 600 });
+      await wait(400);
+      anim(tbot, [{ transform: "translateY(110%)" }, { transform: "translateY(0)" }], { duration: 400, easing: "ease-out" });
+      await anim(logo, [{ opacity: 0, transform: "translateY(30px) scale(1.2)" }, { opacity: 1, transform: "translateY(0) scale(1)" }], { duration: 750, easing: "cubic-bezier(.2,1.2,.4,1)" });
+      skip.hidden = true;
+      op.style.cursor = "pointer";
+      op.onclick = () => { Bgm.sfx("tap"); finish(); };
+    } catch (e) { /* skipped */ }
+  })();
+}
+
+function loadScript(src) { return new Promise((ok, ng) => { const t = document.createElement("script"); t.src = src; t.onload = ok; t.onerror = ng; document.head.appendChild(t); }); }
+async function initFirebase() {
+  const cfg = window.FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey) return false;
+  const base = "https://www.gstatic.com/firebasejs/10.12.2/";
+  await loadScript(base + "firebase-app-compat.js");
+  await loadScript(base + "firebase-auth-compat.js");
+  await loadScript(base + "firebase-firestore-compat.js");
+  firebase.initializeApp(cfg);
+  const cred = await firebase.auth().signInAnonymously();
+  uid = cred.user.uid; canWrite = true; db = firebase.firestore(); STANDALONE = true;
+  return true;
+}
+async function init() {
+  const c = window.claude;
+  rebuildQ();
+  if (!c || !c.use) { try { await initFirebase(); } catch (e) { db = null; } }
+  else try {
+    const got = await Promise.all([c.use("db"), c.use("user")]);
+    db = got[0];
+    const user = got[1];
+    if (user) {
+      uid = await user.id();
+      canWrite = await user.can("data.write");
+    }
+  } catch (e) { db = null; }
+  if (!G) render();
+  if (!db) { boardState = "offline"; renderBoard(); return; }
+  if (uid) {
+    try {
+      db.doc("data/users/" + uid + "/profile").get().then((s) => {
+        if (!s.exists) { if (myName || tutorialDone || prog.chu || prog.jo) saveProfile(); return; }
+        const d = s.data();
+        let changed = false;
+        if (d.tutorialDone && !tutorialDone) { tutorialDone = true; changed = true; }
+        if (d.chu && !prog.chu) { prog.chu = true; changed = true; }
+        if (d.jo && !prog.jo) { prog.jo = true; changed = true; }
+        if (d.name && !myName) { myName = String(d.name).slice(0, 12); changed = true; }
+        if (changed) {
+          try {
+            localStorage.setItem("quiz-name", myName);
+            localStorage.setItem("quiz-tut", tutorialDone ? "1" : "0");
+            localStorage.setItem("quiz-prog", JSON.stringify(prog));
+          } catch (e) {}
+          if (!G && view === "home") render();
+        }
+      }).catch(() => {});
+    } catch (e) {}
+  }
+  db.collection("results").limit(500).onSnapshot(
+    (snap) => {
+      rows = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+      boardState = "ready";
+      renderBoard();
+    },
+    () => { boardState = "error"; renderBoard(); }
+  );
+  db.collection("questions").limit(500).onSnapshot(
+    (snap) => {
+      fsQ = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+      rebuildQ();
+      if (!G && view === "qadd") renderQList();
+    },
+    () => {}
+  );
+}
+enterGame();
+</script>
