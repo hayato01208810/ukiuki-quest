@@ -6,4 +6,4 @@ window.FIREBASE_CONFIG = {
   appId: "1:540844364144:web:df94a05a6d9f2313573fb5"
 };
 // 問題を追加・編集できる管理者のID(アプリの「問題を追加する」画面に自分のIDが出ます)
-window.ADMIN_UIDS = [];
+window.ADMIN_UIDS = ["GOWtuOOYNtTvF9GAIWu45yDKSTD2"];
