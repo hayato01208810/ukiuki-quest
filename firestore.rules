@@ -29,6 +29,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isGM();
     }
+    // 敵キャラ図鑑の名前と説明: 誰でも読める。書けるのはゲームマスターだけ
+    match /enemies/{id} {
+      allow read: if true;
+      allow write: if isGM();
+    }
     // 答えの記録(分析用): 書けるのは自分の行だけ。読めるのはゲームマスターだけ
     match /stats/{uid} {
       allow read: if isGM();

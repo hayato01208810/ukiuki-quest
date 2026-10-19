@@ -58,6 +58,8 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .scene.tutbg { background: var(--box) url("tutorial-bg2.jpg") center bottom / cover no-repeat; }
 .scene.chubg { background: var(--box) url("chu-bg.jpg") center 5% / cover no-repeat; }
 .scene.chubg .enemy-wrap { bottom: 2%; } /* 中級: 台座の手前のカーペットに立たせる */
+.scene.jobg { background: var(--box) url("jo-bg.jpg") center 62% / cover no-repeat; }
+.scene.jobg .enemy-wrap { bottom: 6%; } /* 上級: ロッカー室の通路に立たせる */
 .scene.rbg { background: var(--box) center bottom / cover no-repeat; }
 .scene.rbg .enemy-wrap { bottom: 10%; }
 .scene.nbg { background: var(--box) url("noodle-bg.jpg") center bottom / cover no-repeat; }
@@ -94,6 +96,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i18 { animation: idle-float 1.4s ease-in-out infinite; }
 .enemy-wrap.i19 { animation: idle-sway 1.6s ease-in-out infinite; }
 .enemy-wrap.i21 { animation: idle-tall 1.8s ease-in-out infinite; }
+.enemy-wrap.i24 { animation: idle-sway 1.3s ease-in-out infinite; }
 .enemy-wrap.i22 { animation: idle-rumble 0.35s linear infinite; }
 .enemy-wrap.i23 { animation: idle-buzz 0.6s ease-in-out infinite; }
 .enemy-wrap.i20 { animation: idle-float 1.5s ease-in-out infinite; }
@@ -333,7 +336,7 @@ const RATE_BG_N = 7; // レート戦の背景の数。敵を5体倒すごとに�
 const RATE_BG_EVERY = 5;
 const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 8], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
-  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 21, 22, 23], next: "rate", desc: "全8問 / クリアでレート戦が解放" },
+  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 21, 22, 23], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
   rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 21, 22, 23], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" }
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
@@ -361,7 +364,8 @@ const ENEMIES = [
   { src: "enemy17.png", h: 60, ar: 0.384, alt: "看板ゾンビ", tag: "激レア", where: "【激レア】どの挑戦でも、ごくまれに現れる(約250問に1回)。1回の挑戦で出るのは1回まで。出会えたらラッキー!" },
   { src: "enemy18.png", h: 54, ar: 0.437, alt: "水切りワイパーの敵" },
   { src: "enemy19.png", h: 48, ar: 0.792, alt: "ゴキブリの敵" },
-  { src: "enemy20.png", h: 44, ar: 1.326, alt: "蚊の敵" }
+  { src: "enemy20.png", h: 44, ar: 1.326, alt: "蚊の敵" },
+  { src: "enemy21.png", h: 60, ar: 0.429, alt: "水撒き小僧", tag: "上級ラスボス", where: "【ラスボス】上級の最後の3問。体力3(3回正解で撃破)" }
 ]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
 function enemyIdx(mode) {
   const m = MODES[mode];
@@ -369,7 +373,7 @@ function enemyIdx(mode) {
   return m.enemies[Math.floor(Math.random() * m.enemies.length)];
 }
 const RARE_EN = 20, RARE_P = 0.004; // 激レアの敵(看板ゾンビ): 1問ごとにこの確率で出る(約250問に1回)。1回の挑戦で1回まで
-const isBossEn = (e) => e === 12 || e === 9 || e === 19; // 体力ゲージのある敵(中級ボス / 裏ボス / ラスボス)
+const isBossEn = (e) => e === 12 || e === 9 || e === 19 || e === 24; // 体力ゲージのある敵(中級ボス / 裏ボス / ラスボス)
 const MODE_KEYS = ["chu", "jo", "rate"];
 
 // c: 選択肢 / a: 正解の位置(0始まり) / e: 解説 / tip: チュートリアルの説明
@@ -844,7 +848,7 @@ function drawScene() {
   if (!c) return;
   const x = c.getContext("2d");
   x.imageSmoothingEnabled = false;
-  if (G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
+  if (G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "jo" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
   else x.drawImage(bgFor(palIdx()), 0, 0);
   if (G && G.flash && G.state === "fb" && !G.lastOk) { x.fillStyle = "rgba(255,60,60,0.3)"; x.fillRect(0, 0, W, H); }
 }
@@ -870,7 +874,7 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 ? " nbg" : G && G.mode === "chu" ? " chubg" : G && G.mode === "rate" ? " rbg" : ""));
+  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 ? " nbg" : G && G.mode === "chu" ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
   if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
   cv.id = "scene"; cv.width = W; cv.height = H;
@@ -1104,7 +1108,7 @@ function preloadFx() {
   const names = [];
   for (let k = 1; k <= 9; k++) names.push("enemy" + k + ".png");
   for (let k = 10; k <= 17; k++) names.push("enemy" + k + ".png");
-  names.push("enemy-boss1.png", "chu-bg.jpg");
+  names.push("enemy-boss1.png", "chu-bg.jpg", "jo-bg.jpg", "enemy21.png");
   for (let k = 1; k <= RATE_BG_N; k++) names.push("rate-bg" + k + ".jpg");
   names.push("ij-oji.png", "ij-ebi.png");
   XB.concat(XE).forEach((d) => names.push(d[0]));
@@ -1336,7 +1340,7 @@ function enemyEl() {
     if (G.en === 10 && can) ojiEntrance(wrap);
     if (G.en === 9) Bgm.sfx("thump");
     if (G.en === RARE_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "ラッキー! 激レア 看板ゾンビ!"); Bgm.sfx("chime"); burst(wrap, { colors: ["#ffd34d", "#ffffff", "#ffb84d"], n: 20, size: [14, 24], dist: [40, 120], dur: 1100, at: 0, shape: "star", up: true }); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2600); } });
-    if (G.en === 12 || G.en === 19) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, G.en === 19 ? "ラスボスが あらわれた!" : "ボスが あらわれた!"); Bgm.sfx("boom"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } });
+    if (G.en === 12 || G.en === 19 || G.en === 24) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, (G.en === 19 || G.en === 24) ? "ラスボスが あらわれた!" : "ボスが あらわれた!"); Bgm.sfx("boom"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } });
     if (can) img.animate([
       { transform: "translate(0, -25%) scale(0.5)", opacity: 0 },
       { transform: "translate(0, 0) scale(1)", opacity: 1 }
@@ -1491,7 +1495,7 @@ function renderGame(root) {
   const tl = el("div", "box ov tl");
   if (tut) { tl.appendChild(el("div", null, "チュートリアル")); tl.appendChild(el("div", null, "練習 " + (G.qi + 1) + " / " + TUT.length)); }
   else if (G.aed) { tl.appendChild(el("div", null, "蘇生チャレンジ")); tl.appendChild(el("div", null, "もんだい " + (G.aed.i + 1) + " / " + AEDQ.length)); }
-  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9) tl.appendChild(el("div", "tagst", "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
+  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9) tl.appendChild(el("div", "tagst", "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
   const tr = el("div", "box ov tr");
   tr.appendChild(el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"));
   const br = el("div", "box ov br");
@@ -1984,8 +1988,15 @@ function renderStats(root) {
   });
 }
 
-const IDLE_DESC = ["ぷるぷる弾む", "ふわふわ浮かぶ", "ゆらゆら揺れる", "ぴょんぴょん跳ねる", "ぶるぶる震える", "ドクドク脈打つ", "ぐらぐら揺れる", "ドスンと足踏みする", "ゆっくり左右に揺れる", "ゆらゆら揺れる", "ゆらゆら揺れる", "ぷるぷる弾む", "ゆっくり脈打つように光る", "ドスンと足踏みする", "ふわふわ浮かぶ", "ゆらゆら揺れる", "ゆっくり脈打つ", "ぴょんぴょん跳ねる", "ふわふわ泳ぐ", "ゆらゆらうねる", "ふわふわ漂う", "ゆらゆら傾く", "カサカサ震える", "ぶんぶん飛び回る"];
-const DEFEAT_DESC = ["ぺしゃんこになって弾ける", "回転して消える", "ばたりと倒れて星が出る", "キャンと飛んでいく", "ショートして爆発する", "回転しながら飛んでいく", "がたがた揺れて崩れる", "ひっくり返ってほこりが舞う", "木のようにゆっくり倒れる", "まっ赤に光って弾け飛ぶ", "ころんと転んで、笑いながら飛んでいく", "ぷるぷる震えて、水しぶきになる", "ひび割れが光って、崩れ落ちる", "ガタガタ震えて、ひっくり返って消える", "ひび割れて光り、崩れる", "ころんと転んで、笑いながら飛んでいく", "カチカチ震えて、爆発する", "ぱたんと倒れて、はね飛ぶ", "ぴちぴち跳ねて、水しぶきになる", "水しぶきをあげて、光って弾け飛ぶ", "ひらひら舞って、金色に光ってはじける", "ガシャンと倒れて、金色の火花になる", "ひっくり返って、ぴくぴくして消える", "ひらひら落ちて、ぷしゅっと消える"];
+let zkEdit = -1, enemyInfo = {}; // 図鑑の編集中の敵 / 編集した名前と説明(Firestore)
+function enName(i) { const x = enemyInfo[i]; return (x && x.name) || ENEMIES[i].alt; }
+function enDesc(i) {
+  const x = enemyInfo[i]; if (x && x.desc) return x.desc;
+  const E = ENEMIES[i], where = [];
+  if (i === 0) where.push("チュートリアル");
+  MODE_KEYS.forEach((k) => { if (MODES[k].enemies.indexOf(i) >= 0) where.push(MODES[k].name); });
+  return "出現: " + (E.where || where.join(" / "));
+}
 function renderZukan(root) {
   const b = el("div", "box stack");
   b.appendChild(el("h2", null, "敵キャラ図鑑"));
@@ -2000,13 +2011,37 @@ function renderZukan(root) {
     im.className = "enemy"; im.src = E.src; im.alt = E.alt; im.draggable = false;
     w.appendChild(im); pic.appendChild(w);
     const info = el("div", "zk-info");
-    info.appendChild(el("div", "zk-name", "No." + (i + 1) + " " + E.alt + (E.tag ? "(" + E.tag + ")" : "")));
-    const where = [];
-    if (i === 0) where.push("チュートリアル");
-    MODE_KEYS.forEach((k) => { if (MODES[k].enemies.indexOf(i) >= 0) where.push(MODES[k].name); });
-    info.appendChild(el("div", "detail", "出現: " + (E.where || where.join(" / "))));
-    info.appendChild(el("div", "detail", "待機: " + IDLE_DESC[i]));
-    info.appendChild(el("div", "detail", "撃破: " + DEFEAT_DESC[i]));
+    info.appendChild(el("div", "zk-name", "No." + (i + 1) + " " + enName(i) + (E.tag ? "(" + E.tag + ")" : "")));
+    info.appendChild(el("div", "detail", enDesc(i)));
+    if (STANDALONE && db && isAdmin()) {
+      if (zkEdit === i) {
+        const nf = document.createElement("input");
+        nf.type = "text"; nf.maxLength = 20; nf.value = enName(i); nf.setAttribute("aria-label", "名前");
+        nf.style.cssText = "font:inherit;font-size:1rem;width:100%;box-sizing:border-box;margin-top:6px";
+        const df = document.createElement("textarea");
+        df.rows = 3; df.maxLength = 120; df.value = enDesc(i); df.setAttribute("aria-label", "説明");
+        df.style.cssText = "font:inherit;font-size:0.95rem;width:100%;box-sizing:border-box;margin-top:6px";
+        const sv = el("button", "btn small", "保存");
+        sv.type = "button";
+        sv.onclick = async () => {
+          sv.disabled = true;
+          try { await db.doc("enemies/" + i).set({ name: nf.value.trim() || E.alt, desc: df.value.trim() }, { merge: true }); zkEdit = -1; render(); }
+          catch (e) { sv.disabled = false; sv.textContent = "保存できませんでした。もう一度"; }
+        };
+        const rs = el("button", "btn sub small", "元に戻す");
+        rs.type = "button";
+        rs.onclick = async () => { try { await db.doc("enemies/" + i).delete(); zkEdit = -1; render(); } catch (e) { rs.textContent = "できませんでした"; } };
+        const cc = el("button", "btn sub small", "やめる");
+        cc.type = "button"; cc.onclick = () => { zkEdit = -1; render(); };
+        const rw = el("div", "qbtns"); rw.style.marginTop = "6px"; rw.append(sv, rs, cc);
+        info.append(nf, df, rw);
+      } else {
+        const eb = el("button", "btn sub small", "名前と説明を編集");
+        eb.type = "button"; eb.style.marginTop = "6px";
+        eb.onclick = () => { zkEdit = i; render(); };
+        info.appendChild(eb);
+      }
+    }
     card.append(pic, info);
     b.appendChild(card);
   });
@@ -2591,6 +2626,13 @@ async function init() {
       renderBoard();
     },
     () => { boardState = "error"; renderBoard(); }
+  );
+  db.collection("enemies").limit(100).onSnapshot(
+    (snap) => {
+      const m = {}; snap.docs.forEach((d) => { m[d.id] = d.data(); }); enemyInfo = m;
+      if (!G && view === "zukan" && zkEdit < 0) render();
+    },
+    () => {}
   );
   db.collection("questions").limit(500).onSnapshot(
     (snap) => {
