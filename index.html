@@ -1419,6 +1419,46 @@ function renderHome(root) {
 }
 
 function renderName(root) {
+  if (STANDALONE && db && uid && !acctId()) { renderNameAcct(root); return; }
+  renderNameOnly(root);
+}
+let nameLogin = false; // 名前の画面: false=はじめて / true=ログイン
+function renderNameAcct(root) {
+  root.appendChild(sceneCanvas());
+  const form = document.createElement("form");
+  form.className = "box stack";
+  form.appendChild(el("h2", null, nameLogin ? "ログイン" : "ユーザー名とパスワードを決めよう"));
+  form.appendChild(el("p", "note", nameLogin ? "前に作ったユーザー名とパスワードを入れてください。記録が戻ります。" : "ユーザー名は、ランキングに表示されます。パスワードは、別の端末でログインするときに使います。忘れると引き継げないので、メモしておいてください。"));
+  const F = acctFields(!nameLogin, "");
+  form.append(...F.els);
+  const err = el("p", "err"); err.hidden = true; err.setAttribute("role", "alert");
+  const say = (t) => { err.textContent = t; err.hidden = false; };
+  form.appendChild(err);
+  const go = el("button", "btn", nameLogin ? "▶ ログイン" : (pendingMode ? "▶ 決定して" + MODES[pendingMode].name + "へ" : "▶ 決定"));
+  go.type = "submit";
+  const sw = el("button", "btn sub", nameLogin ? "はじめての人は、こちら" : "すでにアカウントがある人は、ログイン");
+  sw.type = "button";
+  sw.onclick = () => { nameLogin = !nameLogin; render(); };
+  const back = el("button", "btn sub", "ホームに戻る");
+  back.type = "button";
+  back.onclick = () => { pendingMode = null; view = "home"; render(); };
+  form.append(go, sw, back);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    if (!acctCheck(F, (t) => say(t))) return;
+    go.disabled = true;
+    try {
+      if (nameLogin) { await acctLogin(F.u.value, F.pw.value); return; }
+      await acctCreate(F.u.value, F.pw.value);
+      setName(F.u.value.trim().slice(0, 12));
+      const m = pendingMode; pendingMode = null; view = "home";
+      if (m && isUnlocked(m)) startMode(m); else render();
+    } catch (x) { say(acctErr(x)); go.disabled = false; }
+  });
+  root.appendChild(form);
+}
+function renderNameOnly(root) {
   root.appendChild(sceneCanvas());
   const form = document.createElement("form");
   form.className = "box stack";
@@ -1839,7 +1879,7 @@ function renderAcct(b) {
   const me = acctId();
   if (me) {
     box.appendChild(el("p", null, "ログイン中: " + me));
-    box.appendChild(el("p", "note", "別の端末でも、このIDとパスワードでログインすると、記録と名前が引き継がれます。"));
+    box.appendChild(el("p", "note", "別の端末でも、このユーザー名とパスワードでログインすると、記録が引き継がれます。"));
     const lo = el("button", "btn sub", "ログアウト");
     lo.type = "button";
     lo.onclick = async () => { try { await firebase.auth().signOut(); } catch (e) {} clearLocalForSwitch(); location.reload(); };
@@ -1848,39 +1888,23 @@ function renderAcct(b) {
     return;
   }
   box.appendChild(el("p", "note", "いまは、この端末だけの記録です(ブラウザのデータを消すと、消えてしまいます)。アカウントを作ると、別の端末でも、記録を引き継げます。"));
-  const mkField = (label, id, type, ph) => {
-    const f = el("div", "field"); const l = el("label", null, label); l.htmlFor = id;
-    const i = document.createElement("input"); i.id = id; i.type = type; i.maxLength = 20; i.autocomplete = "off"; i.autocapitalize = "none"; if (ph) i.placeholder = ph;
-    f.append(l, i); return [f, i];
-  };
-  const [f1, idI] = mkField("ID(半角の英数字と _ / 3〜20文字)", "acid", "text", "例: taro_01");
-  const [f2, pwI] = mkField("パスワード(6文字以上)", "acpw", "password");
-  const [f3, pw2I] = mkField("パスワード(もう一度・作るときだけ)", "acpw2", "password");
-  const idOk = () => /^[A-Za-z0-9_]{3,20}$/.test(idI.value.trim());
+  const F = acctFields(true, myName);
   const mk = el("button", "btn sub", "アカウントを作る");
   mk.type = "button";
   mk.onclick = async () => {
-    if (!idOk()) { tell("IDは、半角の英数字と _ で、3〜20文字にしてください。", true); return; }
-    if (pwI.value.length < 6) { tell("パスワードは、6文字以上にしてください。", true); return; }
-    if (pwI.value !== pw2I.value) { tell("パスワードが、2回で一致しません。", true); return; }
+    if (!acctCheck(F, tell)) return;
     mk.disabled = true;
-    try {
-      const cred = firebase.auth.EmailAuthProvider.credential(acctEmail(idI.value.trim()), pwI.value);
-      await firebase.auth().currentUser.linkWithCredential(cred);
-      saveProfile(); render();
-    } catch (e) { tell(acctErr(e), true); mk.disabled = false; }
+    try { await acctCreate(F.u.value, F.pw.value); saveProfile(); render(); }
+    catch (e) { tell(acctErr(e), true); mk.disabled = false; }
   };
   const li = el("button", "btn sub", "ログインする");
   li.type = "button";
   li.onclick = async () => {
-    if (!idOk() || !pwI.value) { tell("IDとパスワードを入れてください。", true); return; }
+    if (!userOk(F.u.value) || !F.pw.value) { tell("ユーザー名とパスワードを入れてください。", true); return; }
     li.disabled = true;
-    try {
-      await firebase.auth().signInWithEmailAndPassword(acctEmail(idI.value.trim()), pwI.value);
-      clearLocalForSwitch(); location.reload();
-    } catch (e) { tell(acctErr(e), true); li.disabled = false; }
+    try { await acctLogin(F.u.value, F.pw.value); } catch (e) { tell(acctErr(e), true); li.disabled = false; }
   };
-  box.append(f1, f2, f3, mk, li, el("p", "note", "※ パスワードを忘れると、引き継げなくなります。メモしておいてください。ログインすると、いまのこの端末だけの記録は、使われなくなります。"), say);
+  box.append(...F.els, mk, li, el("p", "note", "※ パスワードを忘れると、引き継げなくなります。メモしておいてください。ログインすると、いまのこの端末だけの記録は、使われなくなります。"), say);
   b.appendChild(box);
 }
 function renderSettings(root) {
@@ -2624,22 +2648,70 @@ function startOpening() {
 }
 
 function loadScript(src) { return new Promise((ok, ng) => { const t = document.createElement("script"); t.src = src; t.onload = ok; t.onerror = ng; document.head.appendChild(t); }); }
-// ---- アカウント(ID+パスワード)。メールは使わず、IDから見えないメールアドレスを作って、Firebaseのメール/パスワードログインを使う ----
-const ACCT_DOMAIN = "@ukiuki-quest.invalid";
-function acctEmail(id) { return id.toLowerCase() + ACCT_DOMAIN; }
-function acctId() { try { const u = firebase.auth().currentUser; return u && !u.isAnonymous && u.email ? u.email.slice(0, -ACCT_DOMAIN.length) : ""; } catch (e) { return ""; } }
+// ---- アカウント(ユーザー名+パスワード)。メールは使わず、ユーザー名から見えないメールアドレスを作って、Firebaseのメール/パスワードログインを使う ----
+const ACCT_DOMAIN = "@ukiuki-quest.invalid", B32 = "abcdefghijklmnopqrstuvwxyz234567";
+function normUser(v) { return String(v || "").normalize("NFKC").trim().toLowerCase(); }
+function b32enc(str) {
+  const by = new TextEncoder().encode(str); let bits = 0, val = 0, out = "";
+  by.forEach((x) => { val = (val << 8) | x; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } val &= (1 << bits) - 1; });
+  if (bits > 0) out += B32[(val << (5 - bits)) & 31];
+  return out;
+}
+function b32dec(t) {
+  let bits = 0, val = 0; const by = [];
+  for (const ch of t) { const k = B32.indexOf(ch); if (k < 0) return null; val = (val << 5) | k; bits += 5; if (bits >= 8) { by.push((val >>> (bits - 8)) & 255); bits -= 8; val &= (1 << bits) - 1; } }
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(by)); } catch (e) { return null; }
+}
+function acctEmail(name) { return "u" + b32enc(normUser(name)) + ACCT_DOMAIN; }
+function userOk(v) { const n = normUser(v); return !!n && [...n].length <= 12 && acctEmail(v).length - ACCT_DOMAIN.length <= 64; }
+function acctId() {
+  try {
+    const u = firebase.auth().currentUser;
+    if (!u || u.isAnonymous || !u.email || !u.email.endsWith(ACCT_DOMAIN)) return "";
+    const loc = u.email.slice(0, -ACCT_DOMAIN.length);
+    return (loc[0] === "u" && b32dec(loc.slice(1))) || loc;
+  } catch (e) { return ""; }
+}
 function acctErr(e) {
   const c = (e && e.code) || "";
-  if (c === "auth/email-already-in-use" || c === "auth/credential-already-in-use") return "そのIDは、すでに使われています。別のIDにしてください。";
+  if (c === "auth/email-already-in-use" || c === "auth/credential-already-in-use") return "そのユーザー名は、すでに使われています。別の名前にしてください。";
   if (c === "auth/weak-password") return "パスワードは、6文字以上にしてください。";
-  if (c === "auth/invalid-email") return "IDは、半角の英数字と _ だけにしてください。";
-  if (c === "auth/invalid-credential" || c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-login-credentials") return "IDかパスワードが違います。";
+  if (c === "auth/invalid-email") return "そのユーザー名は、使えません。別の名前にしてください。";
+  if (c === "auth/invalid-credential" || c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-login-credentials") return "ユーザー名かパスワードが違います。";
   if (c === "auth/operation-not-allowed") return "アカウント機能が、まだ有効になっていません(運営側の設定が必要です)。";
   if (c === "auth/network-request-failed") return "通信できませんでした。電波を確認して、もう一度試してください。";
   if (c === "auth/too-many-requests") return "しばらく時間をおいて、もう一度試してください。";
   return "うまくいきませんでした。もう一度試してください。";
 }
 function clearLocalForSwitch() { try { ["quiz-name", "quiz-tut", "quiz-prog"].forEach((k) => localStorage.removeItem(k)); } catch (e) {} }
+async function acctCreate(name, pw) { // いまの(匿名の)記録を引き継いで、アカウントにする
+  const cred = firebase.auth.EmailAuthProvider.credential(acctEmail(name), pw);
+  await firebase.auth().currentUser.linkWithCredential(cred);
+}
+async function acctLogin(name, pw) {
+  await firebase.auth().signInWithEmailAndPassword(acctEmail(name), pw);
+  clearLocalForSwitch(); location.reload();
+}
+// ユーザー名・パスワード(・確認)の入力欄と、「作る」「ログイン」の部品
+function acctFields(withConfirm, nameVal) {
+  const mk = (label, id, type, ph, max) => {
+    const f = el("div", "field"); const l = el("label", null, label); l.htmlFor = id;
+    const i = document.createElement("input"); i.id = id; i.type = type; i.maxLength = max || 40; i.autocomplete = "off"; i.autocapitalize = "none"; if (ph) i.placeholder = ph;
+    f.append(l, i); return [f, i];
+  };
+  const [f1, u] = mk("ユーザー名(ランキングに表示されます)", "acid", "text", "例: たろう", 12);
+  if (nameVal) u.value = nameVal;
+  const [f2, pw] = mk("パスワード(6文字以上)", "acpw", "password");
+  const els = [f1, f2]; let pw2 = null;
+  if (withConfirm) { const [f3, i3] = mk("パスワード(もう一度)", "acpw2", "password"); els.push(f3); pw2 = i3; }
+  return { els, u, pw, pw2 };
+}
+function acctCheck(F, say) { // 入力の確認。問題があれば、メッセージを出して false
+  if (!userOk(F.u.value)) { say("ユーザー名は、1〜12文字で入れてください。", true); return false; }
+  if (F.pw.value.length < 6) { say("パスワードは、6文字以上にしてください。", true); return false; }
+  if (F.pw2 && F.pw.value !== F.pw2.value) { say("パスワードが、2回で一致しません。", true); return false; }
+  return true;
+}
 async function initFirebase() {
   const cfg = window.FIREBASE_CONFIG;
   if (!cfg || !cfg.apiKey) return false;
