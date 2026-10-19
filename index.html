@@ -1858,7 +1858,7 @@ function renderSettings(root) {
   const back = el("button", "btn sub", "ホームに戻る");
   back.type = "button";
   back.onclick = () => { view = "home"; render(); };
-  b.appendChild(qb);
+  if (isAdmin()) b.appendChild(qb); // 問題の追加は、ゲームマスターだけ
   if (STANDALONE && !isAdmin() && db && uid) {
     const gf = el("div", "field");
     const gl = el("label", null, "ゲームマスターになる(合言葉)");
@@ -2011,7 +2011,7 @@ function renderQAdd(root) {
   const b = el("div", "box stack");
   const h2 = el("h2", null, "問題を追加する");
   b.appendChild(h2);
-  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは、ゲームマスターだけです。設定の「ゲームマスターになる」で、合言葉を入れてください。"));
+  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは、ゲームマスターだけです。設定の「ゲームマスターになる(合言葉)」から登録できます。"));
   if (!qAddAllowed()) b.appendChild(el("p", "note", noteText() || "この表示では問題を追加できません。"));
   const form = document.createElement("form");
   form.className = "stack";
