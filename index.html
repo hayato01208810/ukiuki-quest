@@ -69,6 +69,8 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .ov { position: absolute; z-index: 2; pointer-events: none; line-height: 1.4; font-size: 0.82rem; padding: 3px 8px; border-width: 2px; max-width: 46%; }
 .ov.tl { top: 6px; left: 6px; }
 .ov.tr { top: 6px; right: 6px; }
+.ov.bl { bottom: 6px; left: 6px; padding: 6px 10px; pointer-events: auto; cursor: pointer; font: inherit; font-size: 0.82rem; color: var(--ink); background: var(--box); }
+.ov.bl.ask { border-color: var(--ng, #ff6b6b); }
 .ov.br { bottom: 6px; right: 6px; display: flex; align-items: center; gap: 6px; }
 .ov .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov .heart { width: 16px; height: 14px; }
@@ -1497,6 +1499,15 @@ function renderGame(root) {
   for (let i = 0; i < maxHp(G.mode); i++) hs.appendChild(heart(i < G.hp));
   br.appendChild(hs);
   sc.append(tl, tr, br);
+  if (!G.talk) { // 途中でやめて、タイトルに戻る(1回目で確認、2回目で戻る)
+    const qt = el("button", "box ov bl" + (G.quitAsk ? " ask" : ""), G.quitAsk ? "本当にやめる?" : "◀ やめる");
+    qt.type = "button";
+    qt.onclick = () => {
+      if (!G.quitAsk) { G.quitAsk = true; qt.textContent = "本当にやめる?"; qt.classList.add("ask"); const g = G; setTimeout(() => { if (G === g && g.quitAsk) { g.quitAsk = false; qt.textContent = "◀ やめる"; qt.classList.remove("ask"); } }, 3000); return; }
+      flushStats(); G = null; view = "home"; render(); window.scrollTo({ top: 0 });
+    };
+    sc.appendChild(qt);
+  }
   if (isBossEn(G.en) && !G.aed) { // ボスの体力(中級ボス3 / 裏ボス5 / ラスボス5)
     const bb = el("div", "bossbar"); bb.appendChild(el("span", null, "ボス"));
     for (let i = 0; i < G.bossMax; i++) bb.appendChild(el("i", i < G.bossHp ? "" : "off"));
