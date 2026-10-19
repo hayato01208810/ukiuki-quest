@@ -1,19 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ゲームマスター: 合言葉を入れて登録された人(admins に自分の行がある人)と、下のID
+    // ゲームマスター: 合言葉で登録された人(admins に自分の行がある人)と、下のID
     function isGM() {
       return request.auth != null && (
         request.auth.uid in ['GOWtuOOYNtTvF9GAIWu45yDKSTD2'] ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
-    // 合言葉で登録する: 合言葉が合っているときだけ、自分の行を作れる(合言葉は、この画面にだけ書く)
+    // 合言葉で登録する: 合言葉は、このファイルではなく、Firestore の config/gm の pw に書く(あとから変えられる)
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow create: if request.auth != null && request.auth.uid == uid
                     && request.resource.data.keys().hasOnly(['pw'])
-                    && request.resource.data.pw == 'ここに合言葉を書く';
-      allow update, delete: if false;
+                    && request.resource.data.pw == get(/databases/$(database)/documents/config/gm).data.pw;
+      allow update: if false;
     }
     // ランキング: 誰でも見られる。書けるのは自分の行だけ
     match /results/{uid} {
@@ -24,20 +24,17 @@ service cloud.firestore {
     match /data/users/{uid}/{doc=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-    // 問題: 誰でも読める。書けるのはゲームマスターだけ
-    match /questions/{id} {
-      allow read: if true;
-      allow write: if isGM();
-    }
-    // 敵キャラ図鑑の名前と説明: 誰でも読める。書けるのはゲームマスターだけ
-    match /enemies/{id} {
-      allow read: if true;
-      allow write: if isGM();
-    }
-    // 答えの記録(分析用): 書けるのは自分の行だけ。読めるのはゲームマスターだけ
+    // 問題・敵キャラ図鑑: 誰でも読める
+    match /questions/{id} { allow read: if true; }
+    match /enemies/{id} { allow read: if true; }
+    // 答えの記録(分析用): 書けるのは自分の行だけ
     match /stats/{uid} {
-      allow read: if isGM();
       allow write: if request.auth != null && request.auth.uid == uid;
+    }
+    // ゲームマスターは、上に書いていないものも含めて、すべて読み書きできる
+    // (これからアプリに機能を足しても、ルールの書きかえは要らない)
+    match /{document=**} {
+      allow read, write: if isGM();
     }
   }
 }
