@@ -1427,8 +1427,8 @@ function renderNameAcct(root) {
   root.appendChild(sceneCanvas());
   const form = document.createElement("form");
   form.className = "box stack";
-  form.appendChild(el("h2", null, nameLogin ? "ログイン" : "ユーザー名とパスワードを決めよう"));
-  form.appendChild(el("p", "note", nameLogin ? "前に作ったユーザー名とパスワードを入れてください。記録が戻ります。" : "ユーザー名は、ランキングに表示されます。パスワードは、別の端末でログインするときに使います。忘れると引き継げないので、メモしておいてください。"));
+  form.appendChild(el("h2", null, nameLogin ? "ログイン" : "ユーザー名と合言葉を決めよう"));
+  form.appendChild(el("p", "note", nameLogin ? "前に作ったユーザー名と合言葉を入れてください。記録が戻ります。" : "ユーザー名は、ランキングに表示されます。合言葉は、別の端末でログインするときに使います。忘れると引き継げないので、メモしておいてください。"));
   const F = acctFields(!nameLogin, "");
   form.append(...F.els);
   const err = el("p", "err"); err.hidden = true; err.setAttribute("role", "alert");
@@ -1879,7 +1879,7 @@ function renderAcct(b) {
   const me = acctId();
   if (me) {
     box.appendChild(el("p", null, "ログイン中: " + me));
-    box.appendChild(el("p", "note", "別の端末でも、このユーザー名とパスワードでログインすると、記録が引き継がれます。"));
+    box.appendChild(el("p", "note", "別の端末でも、このユーザー名と合言葉でログインすると、記録が引き継がれます。"));
     const lo = el("button", "btn sub", "ログアウト");
     lo.type = "button";
     lo.onclick = async () => { try { await firebase.auth().signOut(); } catch (e) {} clearLocalForSwitch(); location.reload(); };
@@ -1900,11 +1900,11 @@ function renderAcct(b) {
   const li = el("button", "btn sub", "ログインする");
   li.type = "button";
   li.onclick = async () => {
-    if (!userOk(F.u.value) || !F.pw.value) { tell("ユーザー名とパスワードを入れてください。", true); return; }
+    if (!userOk(F.u.value) || !F.pw.value) { tell("ユーザー名と合言葉を入れてください。", true); return; }
     li.disabled = true;
     try { await acctLogin(F.u.value, F.pw.value); } catch (e) { tell(acctErr(e), true); li.disabled = false; }
   };
-  box.append(...F.els, mk, li, el("p", "note", "※ パスワードを忘れると、引き継げなくなります。メモしておいてください。ログインすると、いまのこの端末だけの記録は、使われなくなります。"), say);
+  box.append(...F.els, mk, li, el("p", "note", "※ 合言葉を忘れると、引き継げなくなります。メモしておいてください。ログインすると、いまのこの端末だけの記録は、使われなくなります。"), say);
   b.appendChild(box);
 }
 function renderSettings(root) {
@@ -1955,7 +1955,7 @@ function renderSettings(root) {
   if (STANDALONE && db && uid) renderAcct(b);
   if (STANDALONE && !isAdmin() && db && uid) {
     const gf = el("div", "field");
-    const gl = el("label", null, "ゲームマスターになる(合言葉)");
+    const gl = el("label", null, "ゲームマスターになる(ゲームマスター用の合言葉)");
     gl.htmlFor = "gmpw";
     const gi = document.createElement("input");
     gi.id = "gmpw"; gi.type = "password"; gi.maxLength = 40; gi.autocomplete = "off";
@@ -2136,7 +2136,7 @@ function renderQAdd(root) {
   const b = el("div", "box stack");
   const h2 = el("h2", null, "問題を追加する");
   b.appendChild(h2);
-  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは、ゲームマスターだけです。設定の「ゲームマスターになる(合言葉)」から登録できます。"));
+  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは、ゲームマスターだけです。設定の「ゲームマスターになる」から登録できます。"));
   if (!qAddAllowed()) b.appendChild(el("p", "note", noteText() || "この表示では問題を追加できません。"));
   const form = document.createElement("form");
   form.className = "stack";
@@ -2648,7 +2648,7 @@ function startOpening() {
 }
 
 function loadScript(src) { return new Promise((ok, ng) => { const t = document.createElement("script"); t.src = src; t.onload = ok; t.onerror = ng; document.head.appendChild(t); }); }
-// ---- アカウント(ユーザー名+パスワード)。メールは使わず、ユーザー名から見えないメールアドレスを作って、Firebaseのメール/パスワードログインを使う ----
+// ---- アカウント(ユーザー名+合言葉)。メールは使わず、ユーザー名から見えないメールアドレスを作って、Firebaseのメール/合言葉ログインを使う ----
 const ACCT_DOMAIN = "@ukiuki-quest.invalid", B32 = "abcdefghijklmnopqrstuvwxyz234567";
 function normUser(v) { return String(v || "").normalize("NFKC").trim().toLowerCase(); }
 function b32enc(str) {
@@ -2675,9 +2675,9 @@ function acctId() {
 function acctErr(e) {
   const c = (e && e.code) || "";
   if (c === "auth/email-already-in-use" || c === "auth/credential-already-in-use") return "そのユーザー名は、すでに使われています。別の名前にしてください。";
-  if (c === "auth/weak-password") return "パスワードは、6文字以上にしてください。";
+  if (c === "auth/weak-password") return "合言葉は、6文字以上にしてください。";
   if (c === "auth/invalid-email") return "そのユーザー名は、使えません。別の名前にしてください。";
-  if (c === "auth/invalid-credential" || c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-login-credentials") return "ユーザー名かパスワードが違います。";
+  if (c === "auth/invalid-credential" || c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-login-credentials") return "ユーザー名か合言葉が違います。";
   if (c === "auth/operation-not-allowed") return "アカウント機能が、まだ有効になっていません(運営側の設定が必要です)。";
   if (c === "auth/network-request-failed") return "通信できませんでした。電波を確認して、もう一度試してください。";
   if (c === "auth/too-many-requests") return "しばらく時間をおいて、もう一度試してください。";
@@ -2692,7 +2692,7 @@ async function acctLogin(name, pw) {
   await firebase.auth().signInWithEmailAndPassword(acctEmail(name), pw);
   clearLocalForSwitch(); location.reload();
 }
-// ユーザー名・パスワード(・確認)の入力欄と、「作る」「ログイン」の部品
+// ユーザー名・合言葉(・確認)の入力欄と、「作る」「ログイン」の部品
 function acctFields(withConfirm, nameVal) {
   const mk = (label, id, type, ph, max) => {
     const f = el("div", "field"); const l = el("label", null, label); l.htmlFor = id;
@@ -2701,15 +2701,15 @@ function acctFields(withConfirm, nameVal) {
   };
   const [f1, u] = mk("ユーザー名(ランキングに表示されます)", "acid", "text", "例: たろう", 12);
   if (nameVal) u.value = nameVal;
-  const [f2, pw] = mk("パスワード(6文字以上)", "acpw", "password");
+  const [f2, pw] = mk("合言葉(6文字以上)", "acpw", "password");
   const els = [f1, f2]; let pw2 = null;
-  if (withConfirm) { const [f3, i3] = mk("パスワード(もう一度)", "acpw2", "password"); els.push(f3); pw2 = i3; }
+  if (withConfirm) { const [f3, i3] = mk("合言葉(もう一度)", "acpw2", "password"); els.push(f3); pw2 = i3; }
   return { els, u, pw, pw2 };
 }
 function acctCheck(F, say) { // 入力の確認。問題があれば、メッセージを出して false
   if (!userOk(F.u.value)) { say("ユーザー名は、1〜12文字で入れてください。", true); return false; }
-  if (F.pw.value.length < 6) { say("パスワードは、6文字以上にしてください。", true); return false; }
-  if (F.pw2 && F.pw.value !== F.pw2.value) { say("パスワードが、2回で一致しません。", true); return false; }
+  if (F.pw.value.length < 6) { say("合言葉は、6文字以上にしてください。", true); return false; }
+  if (F.pw2 && F.pw.value !== F.pw2.value) { say("合言葉が、2回で一致しません。", true); return false; }
   return true;
 }
 async function initFirebase() {
