@@ -114,6 +114,9 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i19 { --gc: rgba(255, 210, 60, .8); animation: idle-sway 1.6s ease-in-out infinite, glowpulse 1.3s ease-in-out infinite; } /* ラスボス: 金 */
 .enemy-wrap.i20 { --gc: rgba(110, 230, 255, .8); animation: idle-float 1.5s ease-in-out infinite, glowpulse 1s ease-in-out infinite; } /* 激レア: 水色 */
 .enemy-wrap.i24 { --gc: rgba(70, 150, 255, .8); animation: idle-sway 1.3s ease-in-out infinite, glowpulse 1.3s ease-in-out infinite; } /* 上級ラスボス: 青 */
+.enemy-wrap.i12 { --gc: rgba(255, 140, 40, .85); }
+@keyframes halo { 0% { opacity: .35; } 100% { opacity: .85; } }
+.zk-pic .enemy-wrap::before { content: ""; position: absolute; inset: -18% -22%; z-index: -1; pointer-events: none; background: radial-gradient(closest-side, var(--gc, transparent), transparent 78%); animation: halo 1.5s ease-in-out infinite alternate; } /* 図鑑: 特別な敵の後ろに、色つきの光の輪 */
 .evbanner { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 4; width: max-content; max-width: 92%; text-align: center; line-height: 1.4; font-size: 0.92rem; color: #fff; background: rgba(5,6,13,.88); border: 2px solid var(--line); border-radius: 4px; padding: 3px 10px; pointer-events: none; }
 @keyframes idle-buzz { 0%, 100% { transform: translateX(-50%) translateY(-7%) rotate(-2deg); } 25% { transform: translateX(-52%) translateY(-2%) rotate(1deg); } 50% { transform: translateX(-49%) translateY(-9%) rotate(2deg); } 75% { transform: translateX(-51.5%) translateY(-3%) rotate(-1deg); } }
 @keyframes idle-rumble { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(-51.3%); } 75% { transform: translateX(-48.7%); } }
@@ -684,9 +687,10 @@ function runTier(run) {
   if (!run || run.mode !== "rate") return 0;
   const len = run.qs.length;
   const reached = run.cleared ? len : Math.min(len, run.qi + 1);
+  const sn = run.snap || run; // 無限回廊に入った人は、ラスボスを倒した時点の成績で、称号を決める
   if (run.cleared) {
-    if (run.answered > 0 && run.answered === run.correct) return 5; // 1問も間違えずにクリア
-    if (run.hp >= 2) return 4; // 体力3(最大)はノーミスなので、残りは2か1
+    if (sn.answered > 0 && sn.answered === sn.correct) return 5; // 1問も間違えずにクリア
+    if (sn.hp >= 2) return 4; // 体力3(最大)はノーミスなので、残りは2か1
     return 3;
   }
   if (reached >= 40) return 2;
@@ -1363,6 +1367,7 @@ function enemyEl() {
     if (G.en === 10 && can) ojiEntrance(wrap);
     if (G.en === 9) Bgm.sfx("thump");
     if (G.en === RARE_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "ラッキー! 激レア 看板ゾンビ!"); Bgm.sfx("chime"); burst(wrap, { colors: ["#ffd34d", "#ffffff", "#ffb84d"], n: 20, size: [14, 24], dist: [40, 120], dur: 1100, at: 0, shape: "star", up: true }); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2600); } });
+    if (G.corrBanner) { G.corrBanner = false; requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "無限回廊 とつにゅう!"); Bgm.sfx("win"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2800); } }); }
     if (G.en === 12 || G.en === 19 || G.en === 24) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, (G.en === 19 || G.en === 24) ? "ラスボスが あらわれた!" : "ボスが あらわれた!"); Bgm.sfx("boom"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } });
     if (can) img.animate([
       { transform: "translate(0, -25%) scale(0.5)", opacity: 0 },
@@ -1560,6 +1565,7 @@ function renderGame(root) {
   const tl = el("div", "box ov tl");
   if (tut) { tl.appendChild(el("div", null, "チュートリアル")); tl.appendChild(el("div", null, "練習 " + (G.qi + 1) + " / " + TUT.length)); }
   else if (G.aed) { tl.appendChild(el("div", null, "蘇生チャレンジ")); tl.appendChild(el("div", null, "もんだい " + (G.aed.i + 1) + " / " + AEDQ.length)); }
+  else if (G.corridor) { tl.appendChild(el("div", null, "無限回廊")); tl.appendChild(el("div", null, (G.qi - G.corrStart + 1) + "問目 / 全" + (G.qs.length - G.corrStart) + "問")); }
   else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9) tl.appendChild(el("div", "tagst", "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
   const tr = el("div", "box ov tr");
   tr.appendChild(el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"));
@@ -1625,7 +1631,7 @@ function renderGame(root) {
   const slot = el("div", "nxslot"); UI.slot = slot;
   if (fbState && !talking) {
     const canAed = G.mode === "rate" && !G.aedDone && !G.aed; // 体力0でも、回復キャラが助けに来る
-    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0))));
+    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
     const nx = el("button", "btn", G.aed && G.lastOk ? (G.aed.i >= AEDQ.length - 1 ? "▶ 体力を回復する!" : "▶ つぎの蘇生問題へ") : finalQ ? "▶ 結果を見る" : "▶ つぎへ");
     nx.type = "button";
     nx.onclick = next;
@@ -1699,6 +1705,7 @@ function renderEnd(root) {
   }
   add("今回の正答率", G.answered ? Math.round(G.correct / G.answered * 100) + "%" : "-");
   add("最大の連続正解", G.maxStreak + "問");
+  if (G.snap) add("無限回廊", (G.answered - G.snap.answered) + "問に挑戦 / " + (G.correct - G.snap.correct) + "問 正解" + (G.corrDone ? "(全問せいは!)" : ""));
   add("答えた問題", G.answered + " / " + G.qs.length);
   add("のこりHP", Math.max(0, G.hp) + " / " + maxHp(G.mode));
   b.appendChild(dl);
@@ -1797,13 +1804,15 @@ function next() {
   G.qi++;
   const B = MODES[G.mode].boss;
   if (B && B.until && G.bossStarted && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ラスボスは、倒すまで問題が続く
-  if (G.qi >= G.qs.length) { endRun(true); return; }
+  if (G.qi >= G.qs.length) { // レート戦のラスボスをたおしたら、まだ出ていない問題を、すべて出す「無限回廊」へ
+    if (!(G.mode === "rate" && !G.corridor && enterCorridor())) { G.corrDone = !!G.corridor; endRun(true); return; }
+  }
   G.state = "ask"; G.opts = null; G.picked = -1; G.lock = false; G.ms = 0;
   G.en = enemyIdx(G.mode); G.appear = true; G.played = false; G.flash = false;
   if (G.mode === "rate") { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
   if (!G.evDone && G.qi === G.evAt) G.en = 11; else if (!G.evDone && G.qi === G.evAt + 1) { G.en = 10; G.evDone = true; } // おじさんは、1回の挑戦で1回だけ
   if (!G.rareDone && G.en !== 10 && G.en !== 11 && Math.random() < RARE_P) G.en = RARE_EN; // 激レア(ボス・裏ボス・おじさんの場面では、あとで上書きされて出ない)
-  const bossZone = () => !!B && (G.bossStarted || G.qi >= G.qs.length - B.hp);
+  const bossZone = () => !!B && !G.corridor && (G.bossStarted || G.qi >= G.qs.length - B.hp);
   if (G.mode === "rate") { // 裏ボス(ヌードルモンスター): 自分の体力が1になったとき、ラスボス戦の前に1回だけ現れる。体力5(5回正解で撃破)
     if (G.nodPhase && G.bossHp <= 0) G.nodPhase = false;
     if (G.nodPhase) { G.en = 9; G.appear = false; }
@@ -1821,8 +1830,31 @@ function next() {
     if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
   }
   if (G.en === RARE_EN) G.rareDone = true;
+  if (G.corrIntro) { // 無限回廊への突入
+    G.corrIntro = false; G.corrBanner = true; G.appear = true;
+    if (G.en === 9 || G.en === 19 || G.en === 24) G.en = enemyIdx(G.mode);
+    G.talk = { lines: ["レート戦クリア おめでとう!", "…だが たたかいは まだ おわらない!", "無限回廊に とつにゅう! まだ見ぬ問題が、あなたを まっている!"], i: 0, t0: Date.now() };
+  }
   render();
   window.scrollTo({ top: 0 });
+}
+function corridorList() { // まだ出ていない問題を、中級 → 上級 → レートの順に(それぞれの中はランダム)
+  const asked = new Set(G.qs.map((x) => x.id).filter(Boolean));
+  let out = [];
+  ["chu", "jo", "rate"].forEach((g) => {
+    const arr = shuffle(extraQ.filter((x) => x.genre === g && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e })));
+    if (g === "jo" && !asked.has(JO_FINAL.id)) arr.push(JO_FINAL);
+    out = out.concat(arr);
+  });
+  return out;
+}
+function enterCorridor() {
+  const list = corridorList();
+  if (!list.length) return false;
+  G.corridor = true; G.corrStart = G.qs.length; G.corrIntro = true;
+  G.snap = { answered: G.answered, correct: G.correct, hp: G.hp }; // 称号は、ここまでの成績で決める
+  G.qs = G.qs.concat(list);
+  return true;
 }
 // ---- 回復キャラ(AED) ----
 function startAed() {
@@ -1883,6 +1915,7 @@ function finishTutorial() {
   render();
 }
 function endRun(cleared) {
+  if (G.snap) cleared = true; // 無限回廊の途中でたおれても、レート戦クリアは、そのまま
   G.state = "end"; G.cleared = cleared; G.aed = null;
   flushStats();
   G.lostToNod = !cleared && G.en === 9; // ヌードルモンスターに負けたときだけ、あのセリフを出す
