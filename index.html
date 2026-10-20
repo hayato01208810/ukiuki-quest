@@ -1955,7 +1955,7 @@ function renderSettings(root) {
   if (STANDALONE && db && uid) renderAcct(b);
   if (STANDALONE && !isAdmin() && db && uid) {
     const gf = el("div", "field");
-    const gl = el("label", null, "ゲームマスターになる(ゲームマスター用の合言葉)");
+    const gl = el("label", null, "ゲームマスターになる(合言葉)");
     gl.htmlFor = "gmpw";
     const gi = document.createElement("input");
     gi.id = "gmpw"; gi.type = "password"; gi.maxLength = 40; gi.autocomplete = "off";
@@ -2136,7 +2136,7 @@ function renderQAdd(root) {
   const b = el("div", "box stack");
   const h2 = el("h2", null, "問題を追加する");
   b.appendChild(h2);
-  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは、ゲームマスターだけです。設定の「ゲームマスターになる」から登録できます。"));
+  if (STANDALONE && !isAdmin()) b.appendChild(el("p", "note", "この画面で問題を追加・編集できるのは、ゲームマスターだけです。設定の「ゲームマスターになる(合言葉)」から登録できます。"));
   if (!qAddAllowed()) b.appendChild(el("p", "note", noteText() || "この表示では問題を追加できません。"));
   const form = document.createElement("form");
   form.className = "stack";
