@@ -2729,8 +2729,10 @@ async function initFirebase() {
   await loadScript(base + "firebase-auth-compat.js");
   await loadScript(base + "firebase-firestore-compat.js");
   firebase.initializeApp(cfg);
-  const cred = await firebase.auth().signInAnonymously();
-  uid = cred.user.uid; canWrite = true; db = firebase.firestore(); STANDALONE = true;
+  // すでにログインずみ(アカウント・匿名)なら、そのまま使う。signInAnonymously を先に呼ぶと、アカウントのログインが外れてしまう
+  let user = await new Promise((res) => { const un = firebase.auth().onAuthStateChanged((u) => { un(); res(u); }); });
+  if (!user) user = (await firebase.auth().signInAnonymously()).user;
+  uid = user.uid; canWrite = true; db = firebase.firestore(); STANDALONE = true;
   try { gmOK = (await db.doc("admins/" + uid).get()).exists; } catch (e) { gmOK = false; } // ゲームマスターに登録ずみか
   return true;
 }
