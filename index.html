@@ -775,9 +775,18 @@ function buildRunQuestions(mode) { // 問題が足りないときは、もう一
 }
 
 // ---- 保存(自分だけの記録。名前・チュートリアル・クリア状況) ----
+// 出会った敵(図鑑で名前を見せる)。この端末に保存して、アカウントの記録にも入れる
+const seen = new Set();
+try { JSON.parse(localStorage.getItem("quiz-seen") || "[]").forEach((x) => { if (Number.isInteger(x)) seen.add(x); }); } catch (e) {}
+function markSeen(i) {
+  if (!Number.isInteger(i) || seen.has(i)) return;
+  seen.add(i);
+  try { localStorage.setItem("quiz-seen", JSON.stringify(Array.from(seen))); } catch (e) {}
+  saveProfile();
+}
 function saveProfile() {
   if (db && uid) {
-    try { db.doc("data/users/" + uid + "/profile").set({ tutorialDone: tutorialDone, name: myName, chu: prog.chu, jo: prog.jo, at: Date.now() }).catch(() => {}); } catch (e) {}
+    try { db.doc("data/users/" + uid + "/profile").set({ tutorialDone: tutorialDone, name: myName, chu: prog.chu, jo: prog.jo, seen: Array.from(seen), at: Date.now() }).catch(() => {}); } catch (e) {}
   }
 }
 function saveProg() {
@@ -1530,6 +1539,7 @@ function curQ() {
 }
 
 function renderGame(root) {
+  markSeen(G.en || 0); // 出会った敵を、図鑑に記録
   const q = curQ();
   if (!G.opts) G.opts = shuffle(q.c.map((t, k) => ({ t, ok: k === q.a })));
   const tut = G.mode === "tutorial";
@@ -2081,25 +2091,33 @@ function enDesc(i) {
   MODE_KEYS.forEach((k) => { if (MODES[k].enemies.indexOf(i) >= 0) where.push(MODES[k].name); });
   return "出現: " + (E.where || where.join(" / "));
 }
+const STF_IDX = [25, 26, 27]; // 図鑑の番号が stf- の敵
+function zkList() { // 図鑑の並び: ふつうの敵(shf-) → stf- の敵 → ボス・特別な敵(最後)
+  const pad = (n) => String(n).padStart(3, "0");
+  const normal = [], stf = [], sp = [];
+  ENEMIES.forEach((E, i) => { if (E.hidden) return; if (STF_IDX.indexOf(i) >= 0) stf.push(i); else if (E.tag) sp.push(i); else normal.push(i); });
+  return normal.map((i, k) => ({ i: i, code: "shf-" + pad(k + 1) })).concat(stf.map((i, k) => ({ i: i, code: "stf-" + pad(k + 1) })), sp.map((i) => ({ i: i, code: "" })));
+}
 function renderZukan(root) {
   const b = el("div", "box stack");
   b.appendChild(el("h2", null, "敵キャラ図鑑"));
-  b.appendChild(el("p", "note", "いま登録されている敵の一覧です(" + ENEMIES.filter((x) => !x.hidden).length + "体)。"));
-  let zno = 0;
-  ENEMIES.forEach((E, i) => {
-    if (E.hidden) return; // 消した敵は、図鑑に出さない(番号も詰める)
-    zno++;
+  const all = zkList(), gm = STANDALONE ? isAdmin() : true; // ゲームマスターは、全部見える
+  const found = all.filter((x) => seen.has(x.i)).length;
+  b.appendChild(el("p", "note", gm ? "いま登録されている敵の一覧です(" + all.length + "体)。" : "出会った敵が、図鑑に載ります(" + found + " / " + all.length + "体)。"));
+  all.forEach((ent) => {
+    const i = ent.i, E = ENEMIES[i], known = gm || seen.has(i);
     const card = el("div", "zk");
     const pic = el("div", "zk-pic");
     const h = Math.min(70, Math.floor(116 / E.ar));
     const w = el("div", "enemy-wrap i" + i);
     w.style.height = h + "px"; w.style.aspectRatio = String(E.ar); w.style.bottom = "4px";
     const im = document.createElement("img");
-    im.className = "enemy"; im.src = E.src; im.alt = E.alt; im.draggable = false;
+    im.className = "enemy"; im.src = E.src; im.alt = known ? E.alt : "？？？"; im.draggable = false;
+    if (!known) im.style.filter = "brightness(0) opacity(.55)"; // 出会っていない敵は、影だけ
     w.appendChild(im); pic.appendChild(w);
     const info = el("div", "zk-info");
-    info.appendChild(el("div", "zk-name", "No." + zno + " " + enName(i) + (E.tag ? "(" + E.tag + ")" : "")));
-    info.appendChild(el("div", "detail", enDesc(i)));
+    info.appendChild(el("div", "zk-name", (ent.code ? ent.code + " " : "") + (known ? enName(i) + (E.tag ? "(" + E.tag + ")" : "") : "？？？")));
+    info.appendChild(el("div", "detail", known ? enDesc(i) : "？？？"));
     if (STANDALONE && db && isAdmin()) {
       if (zkEdit === i) {
         const nf = document.createElement("input");
@@ -2692,7 +2710,7 @@ function acctErr(e) {
   if (c === "auth/too-many-requests") return "しばらく時間をおいて、もう一度試してください。";
   return "うまくいきませんでした。もう一度試してください。";
 }
-function clearLocalForSwitch() { try { ["quiz-name", "quiz-tut", "quiz-prog"].forEach((k) => localStorage.removeItem(k)); } catch (e) {} }
+function clearLocalForSwitch() { try { ["quiz-name", "quiz-tut", "quiz-prog", "quiz-seen"].forEach((k) => localStorage.removeItem(k)); } catch (e) {} }
 async function acctCreate(name, pw) { // いまの(匿名の)記録を引き継いで、アカウントにする
   const cred = firebase.auth.EmailAuthProvider.credential(acctEmail(name), pw);
   await firebase.auth().currentUser.linkWithCredential(cred);
@@ -2761,11 +2779,13 @@ async function init() {
         if (d.chu && !prog.chu) { prog.chu = true; changed = true; }
         if (d.jo && !prog.jo) { prog.jo = true; changed = true; }
         if (d.name && !myName) { myName = String(d.name).slice(0, 12); changed = true; }
+        if (Array.isArray(d.seen)) { d.seen.forEach((x) => { if (Number.isInteger(x) && !seen.has(x)) { seen.add(x); changed = true; } }); }
         if (changed) {
           try {
             localStorage.setItem("quiz-name", myName);
             localStorage.setItem("quiz-tut", tutorialDone ? "1" : "0");
             localStorage.setItem("quiz-prog", JSON.stringify(prog));
+            localStorage.setItem("quiz-seen", JSON.stringify(Array.from(seen)));
           } catch (e) {}
           if (!G && view === "home") render();
         }
