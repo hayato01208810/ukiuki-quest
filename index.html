@@ -1786,7 +1786,7 @@ function pick(k) {
   }
   if (G.mode !== "tutorial") {
     G.answered++;
-    if (G.en !== 9) recStat(curQ(), ok); // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
+    if (G.en !== 9 && !G.test) recStat(curQ(), ok); // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
     else { G.hp--; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
@@ -1921,10 +1921,10 @@ function endRun(cleared) {
   G.lostToNod = !cleared && G.en === 9; // ヌードルモンスターに負けたときだけ、あのセリフを出す
   if (cleared && G.mode === "chu") { prog.chu = true; saveProg(); }
   if (cleared && G.mode === "jo") { prog.jo = true; saveProg(); }
-  G.save = (G.mode === "rate" && canSave()) ? "saving" : "";
+  G.save = (G.mode === "rate" && canSave() && !G.test) ? "saving" : "";
   render();
   window.scrollTo({ top: 0 });
-  if (G.mode === "rate") saveRun(G);
+  if (G.mode === "rate" && !G.test) saveRun(G);
 }
 
 // ================= 設定と問題追加 =================
@@ -2031,6 +2031,15 @@ function renderSettings(root) {
     b.append(gf, gb, gm);
   }
   if (STANDALONE && isAdmin()) {
+    const cb = el("button", "btn sub", "無限回廊をためす(GM・記録されません)");
+    cb.type = "button";
+    cb.onclick = () => { // ラスボスをたおしたあとの状態から、すぐに無限回廊を始める。ランキングにも分析にも記録しない
+      startMode("rate");
+      if (!G) return;
+      G.test = true; G.qs = []; G.qi = -1; G.bossStarted = true; G.bossHp = 0; G.evDone = true; G.evAt = -1;
+      next();
+    };
+    b.appendChild(cb);
     const sb = el("button", "btn sub", "分析を見る(GM)");
     sb.type = "button";
     sb.onclick = () => { view = "stats"; render(); };
