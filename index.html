@@ -1193,6 +1193,36 @@ function flashScene(scn, color, ms) {
   const f = document.createElement("div"); f.style.cssText = "position:absolute;inset:0;z-index:6;pointer-events:none;background:" + color + ";";
   scn.appendChild(f); f.animate([{ opacity: 0 }, { opacity: .85, offset: .25 }, { opacity: 0 }], { duration: ms }).finished.then(() => f.remove()).catch(() => f.remove());
 }
+// タイムスリップ: 渦まく光と色のゆがみで、時間がとんで背景がかわる(新しい背景はすでに下にある)
+function timeSlip(scn, alive) {
+  if (typeof scn.animate !== "function") return;
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:absolute;inset:-30%;z-index:5;pointer-events:none;mix-blend-mode:screen;background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(160,220,255,.95) 0deg,rgba(255,255,255,.1) 7deg,rgba(190,140,255,.85) 14deg,rgba(20,10,60,.2) 21deg),radial-gradient(circle at 50% 50%,#fff 0%,rgba(120,200,255,.6) 35%,rgba(40,20,120,.3) 100%);";
+  scn.appendChild(ov);
+  const ring = document.createElement("div");
+  ring.style.cssText = "position:absolute;left:50%;top:50%;width:30%;aspect-ratio:1;margin:-15% 0 0 -15%;border-radius:50%;z-index:6;pointer-events:none;border:3px solid #fff;box-shadow:0 0 18px 6px #9fd8ff,inset 0 0 18px 4px #c9a8ff;";
+  scn.appendChild(ring);
+  const done = () => { ov.remove(); ring.remove(); };
+  ov.animate([
+    { opacity: 0, transform: "rotate(0deg) scale(.4)" },
+    { opacity: 1, transform: "rotate(160deg) scale(1)", offset: .3 },
+    { opacity: .75, transform: "rotate(300deg) scale(1.4)", offset: .65 },
+    { opacity: 0, transform: "rotate(420deg) scale(2)" }
+  ], { duration: 1500, easing: "ease-in-out" }).finished.then(done).catch(done);
+  ring.animate([
+    { transform: "scale(.2)", opacity: 1 },
+    { transform: "scale(2.5)", opacity: .9, offset: .5 },
+    { transform: "scale(7)", opacity: 0 }
+  ], { duration: 1300, easing: "ease-out" });
+  // 背景そのものも、色がぐるっと回って、ぼやけた状態から、もどる
+  scn.animate([
+    { filter: "hue-rotate(0deg) blur(0px) saturate(1)" },
+    { filter: "hue-rotate(120deg) blur(7px) saturate(2.2) brightness(1.4)", offset: .3 },
+    { filter: "hue-rotate(260deg) blur(4px) saturate(1.8)", offset: .6 },
+    { filter: "hue-rotate(360deg) blur(0px) saturate(1)" }
+  ], { duration: 1500, easing: "ease-in-out" });
+  Bgm.sfx("summon");
+}
 function clawSlashes(scn, alive) { // 斜めの爪あと(3本)
   [[18, -32, 0], [40, -28, 80], [62, -34, 160]].forEach((d) => {
     setTimeout(() => {
@@ -1346,7 +1376,7 @@ function enemyEl() {
     const done = () => { root.classList.remove("evintro"); };
     img.addEventListener("load", done); img.addEventListener("error", done); setTimeout(done, 2500);
   }
-  if (G.state === "ask" && G.bgNew) { const bn = G.bgNew; G.bgNew = false; if (G.en !== 9 && G.en !== 11 && G.en !== 12 && G.en !== 19) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "つぎの エリアへ!"); Bgm.sfx("scene"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 1600); } }); }
+  if (G.state === "ask" && G.bgNew) { const bn = G.bgNew; G.bgNew = false; if (G.en !== 9 && G.en !== 11 && G.en !== 12 && G.en !== 19) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { if (G && G.corridor) timeSlip(sc); evBanner(sc, G && G.corridor ? "時を こえて…" : "つぎの エリアへ!"); Bgm.sfx("scene"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 1600); } }); }
   const reduce = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   const can = !reduce && typeof img.animate === "function";
   if (G.state === "fb" && G.lastOk && isBossEn(G.en) && G.bossHp > 0) { // ボスはまだ倒れない: ダメージを受けて、ぐらっとのけぞる
