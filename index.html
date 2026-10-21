@@ -1165,7 +1165,6 @@ function preloadFx() {
   for (let k = 1; k <= RATE_BG_N; k++) names.push("rate-bg" + k + ".jpg");
   names.push("ij-oji.png", "ij-ebi.png");
   XB.concat(XE).forEach((d) => names.push(d[0]));
-  for (let k = 1; k <= 15; k++) names.push("ij-s" + String(k).padStart(2, "0") + ".png");
   let i = 0;
   const step = () => { if (i >= names.length) return; const im = new Image(); im.src = names[i++]; FX_KEEP.push(im); (im.decode ? im.decode() : Promise.resolve()).catch(() => {}).then(() => setTimeout(step, 60)); };
   step(); step();
@@ -1259,9 +1258,12 @@ function ebiIntro(wrap) {
   wrap.style.visibility = "hidden";
   document.documentElement.classList.add("evintro");
   setTimeout(() => { g.lock = false; document.documentElement.classList.remove("evintro"); }, 9000);
-  requestAnimationFrame(() => {
+  // 絵が読み込みきっていないと、登場の途中で絵が抜けるので、先に読み込む(最長2秒まで待つ)
+  const need = ["ij-oji.png", "ij-ebi.png"].concat(XB.map((d) => d[0]), XE.map((d) => d[0]));
+  const loads = need.map((n) => { const im = new Image(); im.src = n; FX_KEEP.push(im); return im.decode ? im.decode().catch(() => {}) : Promise.resolve(); });
+  Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 2000))]).then(() => requestAnimationFrame(() => {
     const scn = wrap.parentElement;
-    if (!scn) { g.lock = false; return; }
+    if (!scn || G !== g) { g.lock = false; document.documentElement.classList.remove("evintro"); if (wrap.isConnected) wrap.style.visibility = "visible"; return; }
     const alive = () => wrap.isConnected && G === g;
     const T = (ms, fn) => setTimeout(() => { if (alive()) fn(); }, ms);
     evBanner(scn, "イタズラおじさんが あらわれた!");
@@ -1277,7 +1279,7 @@ function ebiIntro(wrap) {
       sp.alt = ""; sp.draggable = false;
       sp.style.cssText = "position:absolute;left:50%;bottom:30%;transform:translateX(-50%);height:56%;width:auto;max-width:none;image-rendering:pixelated;z-index:2;pointer-events:none;";
       scn.appendChild(sp);
-      for (let k = 1; k <= 15; k++) setTimeout(() => { if (alive()) { sp.src = "ij-s" + String(k).padStart(2, "0") + ".png"; if (k % 4 === 1) Bgm.sfx("bubble"); } }, (k - 1) * 110);
+      for (let k = 6; k <= 15; k++) setTimeout(() => { if (alive()) { sp.src = "ij-s" + String(k).padStart(2, "0") + ".png"; if (k % 4 === 2) Bgm.sfx("bubble"); } }, (k - 6) * 110);
       setTimeout(() => {
         sp.remove();
         if (!alive()) return;
@@ -1286,9 +1288,9 @@ function ebiIntro(wrap) {
         evBanner(scn, "エビサンダルを たおして、おじさんに しょうぶだ!");
         g.lock = false; document.documentElement.classList.remove("evintro");
         setTimeout(() => { if (alive()) evBanner(scn, ""); }, 2200);
-      }, 15 * 110 + 40);
+      }, 10 * 110 + 40);
     });
-  });
+  }));
 }
 function ojiEntrance(wrap) {
   requestAnimationFrame(() => {
