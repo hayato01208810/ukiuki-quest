@@ -2487,7 +2487,7 @@ function boardRow(r, rank) {
   nm.appendChild(el("span", tierOf(r) === TOP_TIER ? "rainbow" : null, String(r.name || "ななし").slice(0, 12)));
   if (r.id === uid) nm.appendChild(el("span", "me-tag", "あなた"));
   who.appendChild(nm);
-  if (tierOf(r)) who.appendChild(el("div", "ttl" + (tierOf(r) === TOP_TIER ? " rainbow" : ""), "称号: " + TITLES[tierOf(r)]));
+  if (tierOf(r)) who.appendChild((() => { const t = el("div", "ttl" + (tierOf(r) === TOP_TIER ? " rainbow" : "")); t.appendChild(el("div", "", "称号:")); t.appendChild(el("div", "", TITLES[tierOf(r)])); return t; })());
   const mt = el("div", "meter");
   const bar = document.createElement("i");
   const frac = rankBy === "rate" ? ratingOf(r) / topRating : Math.min(1, (r.bestStreak || 0) / MODES.rate.len);
