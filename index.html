@@ -1367,6 +1367,7 @@ function enemyEl() {
       if (R.origin) img.style.transformOrigin = R.origin;
       img.animate(R.frames, { duration: R.dur, easing: R.ease, fill: "forwards" });
       burst(wrap, FX[G.en || 0]);
+      if (G.en === 10) { const g = G; setTimeout(() => { if (G === g && g.state === "fb" && g.lastOk && !g.talk) { Bgm.sfx("pop"); talkStart(["くっ、、次出勤した時覚えてろ。プール落としてやる、、、!"]); } }, 900); }
       if (G.en === RARE_EN) setTimeout(() => { const sc = wrap.parentElement; if (wrap.isConnected && sc) { evBanner(sc, "ラッキー! 看板ゾンビを たおした!"); Bgm.sfx("win"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 1800); } }, 900);
     }
   } else if (G.state === "fb" && can && !G.played && G.en === 9) {
