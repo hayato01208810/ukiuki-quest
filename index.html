@@ -117,6 +117,32 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i12 { --gc: rgba(255, 140, 40, .85); }
 @keyframes halo { 0% { opacity: .35; } 100% { opacity: .85; } }
 .zk-pic .enemy-wrap::before { content: ""; position: absolute; inset: -18% -22%; z-index: -1; pointer-events: none; background: radial-gradient(closest-side, var(--gc, transparent), transparent 78%); animation: halo 1.5s ease-in-out infinite alternate; } /* 図鑑: 特別な敵の後ろに、色つきの光の輪 */
+/* 分析画面 */
+.st-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.st-tile { border: 2px solid var(--muted); border-radius: 4px; padding: 8px 6px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.st-tile small { color: var(--muted); font-size: 0.72rem; }
+.st-tile b { font-size: 1.25rem; font-weight: 400; }
+.st-tabs { display: flex; gap: 6px; }
+.st-tab { flex: 1; font: inherit; font-size: 1rem; color: var(--ink); background: var(--box); border: 2px solid var(--muted); border-radius: 4px; padding: 10px 6px; cursor: pointer; }
+.st-tab.on { border-color: var(--accent); color: var(--accent); background: var(--bg2); }
+.st-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid #26305f; }
+.st-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.st-label { font-size: 1rem; }
+.st-pc { font-size: 1.15rem; }
+.st-bar { height: 10px; background: var(--heart-off); border-radius: 2px; overflow: hidden; }
+.st-bar i { display: block; height: 100%; }
+.st-pc.ok, .st-big.ok, .st-tile b.ok { color: var(--ok); } .st-pc.mid, .st-big.mid, .st-tile b.mid { color: var(--accent); } .st-pc.ng, .st-big.ng, .st-tile b.ng { color: var(--ng); }
+.st-bar i.ok { background: var(--ok); } .st-bar i.mid { background: var(--accent); } .st-bar i.ng { background: var(--ng); }
+.st-q { display: flex; gap: 10px; align-items: flex-start; border: 2px solid var(--muted); border-radius: 4px; padding: 8px 10px; cursor: pointer; }
+.st-big { flex: none; width: 58px; text-align: center; display: flex; flex-direction: column; line-height: 1.2; }
+.st-big span { font-size: 1.3rem; }
+.st-big small { font-size: 0.7rem; color: var(--muted); }
+.st-qbody { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.st-qtext { font-size: 0.95rem; line-height: 1.45; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-q.open .st-qtext { display: block; }
+.st-filter { display: flex; align-items: center; gap: 8px; }
+.st-filter select, .st select { font: inherit; }
+.st-h { font-size: 1rem; color: var(--accent); font-weight: 400; margin-top: 6px; }
 .evbanner { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 4; width: max-content; max-width: 92%; text-align: center; line-height: 1.4; font-size: 0.92rem; color: #fff; background: rgba(5,6,13,.88); border: 2px solid var(--line); border-radius: 4px; padding: 3px 10px; pointer-events: none; }
 @keyframes idle-buzz { 0%, 100% { transform: translateX(-50%) translateY(-7%) rotate(-2deg); } 25% { transform: translateX(-52%) translateY(-2%) rotate(1deg); } 50% { transform: translateX(-49%) translateY(-9%) rotate(2deg); } 75% { transform: translateX(-51.5%) translateY(-3%) rotate(-1deg); } }
 @keyframes idle-rumble { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(-51.3%); } 75% { transform: translateX(-48.7%); } }
@@ -2051,15 +2077,28 @@ function renderSettings(root) {
 
 // ================= GM用の分析画面 =================
 function pctOf(c, n) { return n ? Math.round(c / n * 100) : 0; }
-function barRow(label, c, n, sub) {
-  const row = el("div", "stack");
-  row.style.gap = "3px";
-  const top = el("div", null, label + "  " + pctOf(c, n) + "%(" + c + "/" + n + ")");
-  const mt = el("div", "meter"); const bar = document.createElement("i"); bar.style.width = pctOf(c, n) + "%"; mt.appendChild(bar);
-  row.append(top, mt);
-  if (sub) row.appendChild(el("div", "detail", sub));
+const stCls = (pc) => pc < 50 ? "ng" : pc < 75 ? "mid" : "ok"; // 正答率の色: 50%未満=赤 / 75%未満=黄 / それ以上=緑
+function barRow(label, c, n, sub) { // 見出し・正答率・棒グラフ(色つき)
+  const pc = pctOf(c, n);
+  const row = el("div", "st-row");
+  const top = el("div", "st-top");
+  top.append(el("span", "st-label", label), el("span", "st-pc " + stCls(pc), pc + "%"));
+  const mt = el("div", "st-bar"); const bar = document.createElement("i"); bar.className = stCls(pc); bar.style.width = Math.max(2, pc) + "%"; mt.appendChild(bar);
+  row.append(top, mt, el("div", "detail", "正解 " + c + " / 回答 " + n + (sub ? "  ・  " + sub : "")));
   return row;
 }
+function qCard(rank, qd, id, c, n) { // 問題のカード(タップで全文)
+  const pc = pctOf(c, n);
+  const card = el("div", "st-q");
+  const big = el("div", "st-big " + stCls(pc)); big.append(el("span", null, pc + "%"), el("small", null, c + "/" + n));
+  const body = el("div", "st-qbody");
+  body.appendChild(el("div", "st-qtext", (rank ? rank + ". " : "") + (qd ? qd.q : id)));
+  body.appendChild(el("div", "detail", (qd ? (CAT_NAME[qd.cat] || "系統なし") + "  ・  正解: " + qd.c[qd.a] : "")));
+  card.append(big, body);
+  card.onclick = () => card.classList.toggle("open");
+  return card;
+}
+let statsTab = "cat";
 function renderStats(root) {
   const b = el("div", "box stack");
   b.appendChild(el("h2", null, "分析(GM用)"));
@@ -2077,7 +2116,7 @@ function renderStats(root) {
     qmap.set("joFinal", { id: "joFinal", q: "(上級の最終問題)胸骨圧迫のA・B・C", c: ["A 5～6cm / B 100～120回 / C 片手"], a: 0, cat: "cpr" });
     body.replaceChildren();
     if (!docs.length) { body.appendChild(el("p", "note", "まだ記録がありません。みんなが遊ぶと、ここに集計されます。")); b.appendChild(back); return; }
-    const tq = {}, tc = {}, pl = [];
+    const tq = {}, tc = {}, pl = []; let totN = 0, totC = 0;
     docs.forEach((d) => {
       const pc = {}; let pn = 0, pcc = 0;
       Object.keys(d.q).forEach((id) => {
@@ -2089,42 +2128,64 @@ function renderStats(root) {
         const p = pc[ck] || (pc[ck] = { n: 0, c: 0 }); p.n += n; p.c += c;
         pn += n; pcc += c;
       });
+      totN += pn; totC += pcc;
       pl.push({ name: d.name, id: d.id, pc: pc, n: pn, c: pcc, q: d.q });
     });
+    pl.sort((x, y) => y.n - x.n);
     const catName = (k) => CAT_NAME[k] || "系統なし";
-    // 1) 全体の系統別
-    body.appendChild(el("h2", null, "全体: 系統ごとの正答率"));
-    body.appendChild(el("p", "note", "遊んだ人 " + docs.length + "人 / 低い順に並べています。"));
-    Object.keys(tc).sort((x, y) => pctOf(tc[x].c, tc[x].n) - pctOf(tc[y].c, tc[y].n)).forEach((k) => body.appendChild(barRow(catName(k), tc[k].c, tc[k].n)));
-    // 2) 正答率が低い問題
-    body.appendChild(el("h2", null, "正答率が低い問題"));
-    const minN = 3;
-    body.appendChild(el("p", "note", "回答が" + minN + "回以上の問題を、低い順に20問まで表示します。"));
-    const low = Object.keys(tq).filter((id) => tq[id].n >= minN).sort((x, y) => pctOf(tq[x].c, tq[x].n) - pctOf(tq[y].c, tq[y].n) || tq[y].n - tq[x].n).slice(0, 20);
-    if (!low.length) body.appendChild(el("p", "note", "まだ回答が少ないので、集計できません。"));
-    low.forEach((id) => {
-      const qd = qmap.get(id);
-      body.appendChild(barRow(qd ? qd.q : id, tq[id].c, tq[id].n, qd ? catName(qd.cat) + " / 正解: " + qd.c[qd.a] : ""));
-    });
-    // 3) 人ごと
-    body.appendChild(el("h2", null, "人ごとの苦手な系統"));
-    const sel = document.createElement("select");
-    sel.setAttribute("aria-label", "プレイヤーを選ぶ");
-    sel.style.cssText = "font:inherit;font-size:1.05rem;padding:9px 12px;width:100%";
-    pl.sort((x, y) => y.n - x.n).forEach((p, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = p.name + "(" + p.n + "問)"; sel.appendChild(o); });
-    const out = el("div", "stack");
-    const show = () => {
-      out.replaceChildren();
-      const p = pl[+sel.value];
-      out.appendChild(el("p", "note", p.name + ": 全体 " + pctOf(p.c, p.n) + "%(" + p.c + "/" + p.n + ")。苦手な順です。"));
-      Object.keys(p.pc).sort((x, y) => pctOf(p.pc[x].c, p.pc[x].n) - pctOf(p.pc[y].c, p.pc[y].n) || p.pc[y].n - p.pc[x].n).forEach((k) => out.appendChild(barRow(catName(k), p.pc[k].c, p.pc[k].n)));
-      const miss = Object.keys(p.q).filter((id) => (p.q[id].n || 0) > (p.q[id].c || 0)).sort((x, y) => ((p.q[y].n - p.q[y].c) - (p.q[x].n - p.q[x].c))).slice(0, 10);
-      if (miss.length) out.appendChild(el("p", "note", "よく間違えた問題(上位" + miss.length + "問)"));
-      miss.forEach((id) => { const qd = qmap.get(id); out.appendChild(barRow(qd ? qd.q : id, p.q[id].c, p.q[id].n, qd ? catName(qd.cat) : "")); });
+    // 上の集計(3つの数字)
+    const tiles = el("div", "st-tiles");
+    const tile = (k, v, cls) => { const t = el("div", "st-tile"); t.append(el("small", null, k), el("b", cls || "", v)); return t; };
+    tiles.append(tile("遊んだ人", docs.length + "人"), tile("回答数", totN + "問"), tile("全体の正答率", pctOf(totC, totN) + "%", stCls(pctOf(totC, totN))));
+    body.appendChild(tiles);
+    // タブ
+    const tabs = el("div", "st-tabs");
+    const content = el("div", "stack");
+    const TABS = [["cat", "系統別"], ["q", "問題別"], ["p", "人ごと"]];
+    const draw = () => {
+      tabs.replaceChildren();
+      TABS.forEach((t) => { const x = el("button", "st-tab" + (statsTab === t[0] ? " on" : ""), t[1]); x.type = "button"; x.onclick = () => { statsTab = t[0]; draw(); }; tabs.appendChild(x); });
+      content.replaceChildren();
+      if (statsTab === "cat") {
+        content.appendChild(el("p", "note", "苦手な系統が上に来ます。棒の色は、赤 = 50%未満 / 黄 = 75%未満 / 緑 = それ以上です。"));
+        Object.keys(tc).sort((x, y) => pctOf(tc[x].c, tc[x].n) - pctOf(tc[y].c, tc[y].n)).forEach((k) => content.appendChild(barRow(catName(k), tc[k].c, tc[k].n)));
+      } else if (statsTab === "q") {
+        let minN = 3;
+        const f = el("div", "st-filter");
+        const lab = el("span", null, "回答が");
+        const sel = document.createElement("select"); sel.setAttribute("aria-label", "最低回答数");
+        [1, 3, 5, 10, 20].forEach((v) => { const o = document.createElement("option"); o.value = String(v); o.textContent = v + "回以上"; if (v === minN) o.selected = true; sel.appendChild(o); });
+        f.append(lab, sel);
+        const list = el("div", "stack");
+        const show = () => {
+          list.replaceChildren();
+          const low = Object.keys(tq).filter((id) => tq[id].n >= minN).sort((x, y) => pctOf(tq[x].c, tq[x].n) - pctOf(tq[y].c, tq[y].n) || tq[y].n - tq[x].n).slice(0, 30);
+          if (!low.length) list.appendChild(el("p", "note", "この条件に合う問題は、まだありません。"));
+          else list.appendChild(el("p", "note", "正答率が低い順に、最大30問。タップすると、問題文が全部見られます。"));
+          low.forEach((id, k) => list.appendChild(qCard(k + 1, qmap.get(id), id, tq[id].c, tq[id].n)));
+        };
+        sel.onchange = () => { minN = +sel.value; show(); };
+        content.append(f, list); show();
+      } else {
+        const sel = document.createElement("select");
+        sel.setAttribute("aria-label", "プレイヤーを選ぶ");
+        pl.forEach((p, k) => { const o = document.createElement("option"); o.value = String(k); o.textContent = p.name + "(" + p.n + "問・" + pctOf(p.c, p.n) + "%)"; sel.appendChild(o); });
+        const out = el("div", "stack");
+        const show = () => {
+          out.replaceChildren();
+          const p = pl[+sel.value];
+          out.appendChild(el("h3", "st-h", "苦手な系統"));
+          Object.keys(p.pc).sort((x, y) => pctOf(p.pc[x].c, p.pc[x].n) - pctOf(p.pc[y].c, p.pc[y].n) || p.pc[y].n - p.pc[x].n).forEach((k) => out.appendChild(barRow(catName(k), p.pc[k].c, p.pc[k].n)));
+          const miss = Object.keys(p.q).filter((id) => (p.q[id].n || 0) > (p.q[id].c || 0)).sort((x, y) => ((p.q[y].n - p.q[y].c) - (p.q[x].n - p.q[x].c))).slice(0, 10);
+          if (miss.length) out.appendChild(el("h3", "st-h", "よく間違えた問題"));
+          miss.forEach((id, k) => out.appendChild(qCard(k + 1, qmap.get(id), id, p.q[id].c, p.q[id].n)));
+        };
+        sel.onchange = show;
+        content.append(sel, out); show();
+      }
     };
-    sel.onchange = show;
-    body.append(sel, out);
-    show();
+    body.append(tabs, content);
+    draw();
     b.appendChild(back);
   }).catch(() => {
     body.replaceChildren(el("p", "err", "読み込めませんでした。Firebaseのルールに、分析用(stats)の設定がまだ入っていない可能性があります。"));
