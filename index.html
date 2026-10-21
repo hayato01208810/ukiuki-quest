@@ -378,7 +378,8 @@ const CORR_BG_N = 7; // 無限回廊の背景の数(廃墟のプール)
 const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
   jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
-  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" }
+  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" },
+  review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
 const ENEMIES = [
@@ -744,6 +745,7 @@ function noteText() {
   return "";
 }
 function isUnlocked(mode) {
+  if (mode === "review") return tutorialDone;
   if (mode === "chu") return tutorialDone;
   if (mode === "jo") return prog.chu;
   return prog.jo;
@@ -791,7 +793,14 @@ function rebuildQ() {
 function isAdmin() { return !STANDALONE || gmOK || (Array.isArray(window.ADMIN_UIDS) && window.ADMIN_UIDS.indexOf(uid) >= 0); }
 function qSet(id, data) { return STANDALONE ? db.doc("questions/" + id).set(data, { merge: true }) : db.doc("questions/" + id).update(data); }
 function qDel(id) { return (STANDALONE && SEED_Q.some((x) => x.id === id)) ? db.doc("questions/" + id).set({ deleted: true }, { merge: true }) : db.doc("questions/" + id).delete(); }
+function reviewList() { // いま復習できる問題(間違えたまま、まだ残っているもの)
+  const out = [];
+  extraQ.forEach((x) => { if (missed.has(x.id)) out.push({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e }); });
+  if (missed.has(JO_FINAL.id)) out.push(JO_FINAL);
+  return out;
+}
 function poolFor(mode) {
+  if (mode === "review") return reviewList();
   const ex = (g) => extraQ.filter((x) => x.genre === g).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e }));
   // 自分たちの問題(アプリで登録・編集したもの)が十分あれば、それだけを出す。足りないときだけ、見本の問題で補う
   const enough = (arr, n) => arr.length >= n;
@@ -801,6 +810,7 @@ function poolFor(mode) {
   return enough(mine, 20) ? mine : BASE.chu.concat(BASE.jo, mine);
 }
 function buildRunQuestions(mode) { // 問題が足りないときは、もう一巡させて必要な数にそろえる(同じ問題が続けて出ないように)
+  if (mode === "review") return shuffle(reviewList()).slice(0, MODES.review.len);
   const n = MODES[mode].len, pool = poolFor(mode);
   let out = [];
   while (pool.length && out.length < n) {
@@ -823,9 +833,16 @@ function markSeen(i) {
   try { localStorage.setItem("quiz-seen", JSON.stringify(Array.from(seen))); } catch (e) {}
   saveProfile();
 }
+// 間違えた問題(復習モードで出す)。この端末に保存して、アカウントの記録にも入れる
+const missed = new Set();
+try { JSON.parse(localStorage.getItem("quiz-missed") || "[]").forEach((x) => { if (typeof x === "string") missed.add(x); }); } catch (e) {}
+function saveMissed() {
+  try { localStorage.setItem("quiz-missed", JSON.stringify(Array.from(missed))); } catch (e) {}
+  saveProfile();
+}
 function saveProfile() {
   if (db && uid) {
-    try { db.doc("data/users/" + uid + "/profile").set({ tutorialDone: tutorialDone, name: myName, chu: prog.chu, jo: prog.jo, seen: Array.from(seen), at: Date.now() }).catch(() => {}); } catch (e) {}
+    try { db.doc("data/users/" + uid + "/profile").set({ tutorialDone: tutorialDone, name: myName, chu: prog.chu, jo: prog.jo, seen: Array.from(seen), missed: Array.from(missed).slice(-400), at: Date.now() }).catch(() => {}); } catch (e) {}
   }
 }
 function saveProg() {
@@ -902,7 +919,7 @@ function drawScene() {
   if (!c) return;
   const x = c.getContext("2d");
   x.imageSmoothingEnabled = false;
-  if (G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "jo" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
+  if (G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "review" || G.mode === "jo" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
   else x.drawImage(bgFor(palIdx()), 0, 0);
   if (G && G.flash && G.state === "fb" && !G.lastOk) { x.fillStyle = "rgba(255,60,60,0.3)"; x.fillRect(0, 0, W, H); }
 }
@@ -928,7 +945,7 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 ? " nbg" : G && G.mode === "chu" ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
+  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
   if (G && G.mode === "rate" && G.corridor && G.en !== 9) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
   else if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
@@ -1502,6 +1519,17 @@ function renderHome(root) {
   });
   b.appendChild(modes);
 
+  if (tutorialDone) { // 復習: 間違えた問題だけを出す
+    const rn = reviewList().length;
+    const rw = el("div", "mode");
+    const rb = el("button", "btn sub", "▶ 復習モード" + (rn ? "(" + rn + "問)" : ""));
+    rb.type = "button"; rb.disabled = !rn;
+    rb.onclick = () => startMode("review");
+    rw.appendChild(rb);
+    rw.appendChild(el("p", "locked", rn ? "間違えた問題だけを、最大10問出します。正解すると復習リストから消えます。ランキングの対象外です。" : "間違えた問題がここにたまります。いまは復習する問題がありません。"));
+    b.appendChild(rw);
+  }
+
   const n = noteText();
   if (n) b.appendChild(el("p", "note", n));
   root.appendChild(b);
@@ -1786,9 +1814,10 @@ function renderEnd(root) {
     nx.onclick = () => startMode(m.next);
     row.appendChild(nx);
   }
-  const again = el("button", G.cleared && m.next ? "btn sub" : "btn", "もう一回挑戦");
+  const again = el("button", G.cleared && m.next ? "btn sub" : "btn", G.mode === "review" ? "つづけて復習" : "もう一回挑戦");
   again.type = "button";
   again.onclick = () => startMode(G.mode);
+  if (G.mode === "review" && !reviewList().length) { again.disabled = true; again.textContent = "復習する問題は、もうありません"; }
   const see = el("button", "btn sub", "ランキングを見る");
   see.type = "button";
   see.onclick = () => $("#board").scrollIntoView({ behavior: "smooth" });
@@ -1804,6 +1833,7 @@ function renderEnd(root) {
 function startMode(mode) {
   if (!isUnlocked(mode)) return;
   if (!myName) { G = null; pendingMode = mode; view = "name"; render(); return; }
+  if (mode === "review" && !reviewList().length) return;
   G = { mode: mode, qs: buildRunQuestions(mode), en: enemyIdx(mode), appear: true, played: false, flash: false, state: "ask", qi: 0, hp: maxHp(mode), aed: null, aedDone: false, answered: 0, correct: 0, streak: 0, maxStreak: 0, opts: null, picked: -1, lastOk: false, cleared: false, save: "", lock: false, evAt: -1, bossHp: 0, bossMax: 3, bossStarted: false, rareDone: false, nodCorrect: 0, nodAnswered: 0, kills: 0, bgi: 0, bgNew: false, nodDone: false, nodPhase: false, evDone: false };
   // イベント戦(おじさん→エビサンダル→おじさん)を、上級とレート戦の途中の連続2問に入れる
   if (Math.random() < RARE_P) { G.en = RARE_EN; G.rareDone = true; }
@@ -1847,7 +1877,8 @@ function pick(k) {
   }
   if (G.mode !== "tutorial") {
     G.answered++;
-    if (G.en !== 9 && !G.test) recStat(curQ(), ok); // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
+    if (G.en !== 9 && !G.test && G.mode !== "review") recStat(curQ(), ok);
+    if (G.en !== 9 && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
     else { G.hp--; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
@@ -2862,7 +2893,7 @@ function acctErr(e) {
   if (c === "auth/too-many-requests") return "しばらく時間をおいて、もう一度試してください。";
   return "うまくいきませんでした。もう一度試してください。";
 }
-function clearLocalForSwitch() { try { ["quiz-name", "quiz-tut", "quiz-prog", "quiz-seen"].forEach((k) => localStorage.removeItem(k)); } catch (e) {} }
+function clearLocalForSwitch() { try { ["quiz-name", "quiz-tut", "quiz-prog", "quiz-seen", "quiz-missed"].forEach((k) => localStorage.removeItem(k)); } catch (e) {} }
 async function acctCreate(name, pw) { // いまの(匿名の)記録を引き継いで、アカウントにする
   const cred = firebase.auth.EmailAuthProvider.credential(acctEmail(name), pw);
   await firebase.auth().currentUser.linkWithCredential(cred);
@@ -2932,8 +2963,10 @@ async function init() {
         if (d.jo && !prog.jo) { prog.jo = true; changed = true; }
         if (d.name && !myName) { myName = String(d.name).slice(0, 12); changed = true; }
         if (Array.isArray(d.seen)) { d.seen.forEach((x) => { if (Number.isInteger(x) && !seen.has(x)) { seen.add(x); changed = true; } }); }
+        if (Array.isArray(d.missed)) { d.missed.forEach((x) => { if (typeof x === "string" && !missed.has(x)) { missed.add(x); changed = true; } }); }
         if (changed) {
           try {
+            localStorage.setItem("quiz-missed", JSON.stringify(Array.from(missed)));
             localStorage.setItem("quiz-name", myName);
             localStorage.setItem("quiz-tut", tutorialDone ? "1" : "0");
             localStorage.setItem("quiz-prog", JSON.stringify(prog));
