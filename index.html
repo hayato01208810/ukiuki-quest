@@ -1950,11 +1950,7 @@ function next() {
   }
   G.state = "ask"; G.opts = null; G.picked = -1; G.lock = false; G.ms = 0;
   G.en = enemyIdx(G.mode); G.appear = true; G.played = false; G.flash = false;
-  if (G.corridor) { // 無限回廊: 廃墟のプールの7枚を、全問題数を7で割って、なるべく均等に順番に切り替える
-    const nb = Math.min(CORR_BG_N - 1, Math.floor((G.qi - G.corrStart) * CORR_BG_N / Math.max(1, G.qs.length - G.corrStart)));
-    if (G.cbi != null && nb !== G.cbi) G.bgNew = true;
-    G.cbi = nb;
-  } else if (G.mode === "rate") { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
+  if (!G.corridor && G.mode === "rate") { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
   if (!G.evDone && G.qi === G.evAt) G.en = 11; else if (!G.evDone && G.qi === G.evAt + 1) { G.en = 10; G.evDone = true; } // おじさんは、1回の挑戦で1回だけ
   if (!G.rareDone && G.en !== 10 && G.en !== 11 && Math.random() < RARE_P) G.en = RARE_EN; // 激レア(ボス・裏ボス・おじさんの場面では、あとで上書きされて出ない)
   const bossZone = () => !!B && !G.corridor && (G.bossStarted || G.qi >= G.qs.length - B.hp);
@@ -1972,13 +1968,22 @@ function next() {
     }
   }
   if (G.corridor && G.mode === "rate") { // 無限回廊のボス(ヌードルモンスター → 覚醒ヌードルモンスター)
-    if (G.cboss && G.bossHp <= 0) G.cboss = false;
+    if (G.cboss && G.bossHp <= 0) { // ボスを倒したら、次のステージへ(背景がかわる)。次のボスは、そのステージの終わりのほうに出る
+      G.cboss = false; G.cbDef = (G.cbDef || 0) + 1;
+      if (G.cbN < CBOSS.length) G.cbNext = G.qi + Math.max(1, Math.floor((G.qs.length - G.corrStart) / CORR_BG_N) - (CBOSS[G.cbN].span || 5));
+    }
     if (G.cboss) { G.en = CBOSS[G.cbN - 1].en; G.appear = false; }
-    else if (G.cbN < CBOSS.length && !G.nodPhase && G.en !== 10 && G.en !== 11 && G.qi >= G.cbAt[G.cbN]) {
+    else if (G.cbN < CBOSS.length && !G.nodPhase && G.en !== 10 && G.en !== 11 && G.qi >= G.cbNext) {
       const cb = CBOSS[G.cbN++];
       G.cboss = true; G.bossHp = cb.hp; G.bossMax = cb.hp; G.en = cb.en; G.appear = true;
       G.talk = { lines: cb.lines(myName || "あなた"), i: 0, t0: Date.now() };
     }
+  }
+  if (G.corridor) { // 無限回廊の背景(廃墟のプール7枚): ボスを倒すごとに次のステージへ。ボスのいないステージ(6・7つめ)は、問題数で切り替える
+    const cs = Math.floor((G.qi - G.corrStart) * CORR_BG_N / Math.max(1, G.qs.length - G.corrStart)), def = G.cbDef || 0;
+    const nb = Math.min(CORR_BG_N - 1, def >= CBOSS.length ? Math.max(def, cs) : def);
+    if (G.cbi != null && nb !== G.cbi) G.bgNew = true;
+    G.cbi = nb;
   }
   if (B && !G.nodPhase && bossZone()) { // ボス戦
     G.en = B.en;
@@ -2010,7 +2015,7 @@ function enterCorridor() {
   G.corridor = true; G.corrStart = G.qs.length; G.corrIntro = true;
   G.snap = { answered: G.answered, correct: G.correct, hp: G.hp }; // 称号は、ここまでの成績で決める
   G.qs = G.qs.concat(list);
-  G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; // ボスが出はじめる位置(各ステージのさいごの5問)
+  G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; G.cbDef = 0; G.cbNext = G.cbAt[0]; // 最初のボスが出はじめる位置(ステージのさいごの5問)
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
   return true;
 }
