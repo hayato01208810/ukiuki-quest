@@ -777,6 +777,24 @@ const JO_FINAL = { id: "joFinal", genre: "jo", cat: "cpr", e: JO_FINAL_E, multi:
   { t: "B", c: ["100～120", "60～80", "80～100", "120～140"], a: 0 },
   { t: "C", c: ["片手", "両手", "指先", "こぶし"], a: 0 }
 ] };
+// ヌードルモンスター(裏ボス)専用の問題。裏ボス戦のときだけ、ここからランダムに出る(通常の問題一覧には入らない)
+const NOD_HEAD = "あなたは学生アルバイトです。職場の先輩への対応として";
+const NOD_Q = [
+  { id: "nd01", q: "【挨拶】" + NOD_HEAD + "相応しいものはどれか", c: ["自分から挨拶する", "相手からの挨拶を待つ", "無視", "会釈のみ"], a: 0, e: "" },
+  { id: "nd02", q: "【返事】" + NOD_HEAD + "相応しいものはどれか", c: ["誠意をもって丁寧な返事をする", "友達と同じようにラフな返事を心がける", "目線はできるだけ合わせず挨拶をする", "無視"], a: 0, e: "" },
+  { id: "nd03", q: "【お願いごと】" + NOD_HEAD + "相応しいものはどれか", c: ["相手の状況を考え、失礼の無いようお願いをする", "忙しいので、伝わればよい", "疲れているので、察してもらえるまで待つ", "頼むのはめんどくさいので何もしない"], a: 0, e: "" },
+  { id: "nd04", q: "【謝罪】" + NOD_HEAD + "相応しいものはどれか", c: ["誠実・迅速に、再発防止の内容とセットで謝罪する", "時間を空け、落ち着いてから謝罪する", "相手から確認されるまで待つ", "できるだけ多くの言い訳を用意する"], a: 0, e: "" },
+  { id: "nd05", q: "【説明するとき】" + NOD_HEAD + "間違っているものはどれか", c: ["端的に伝えるために、タメ口・単語のみを活用する", "結論から伝える", "枕言葉(クッション言葉)を活用する", "話し言葉を控える"], a: 0, e: "" },
+  { id: "nd06", q: "【時間が余った時】" + NOD_HEAD + "間違っているものはどれか", c: ["邪魔にならないように報告はせず休憩をとる", "次に何が必要か自ら考え、確認・提案をする", "他に作業中のスタッフを手伝う", "自分の作業に不足・不備が無かったか見直しをする"], a: 0, e: "" }
+];
+function useNodQ() { // 裏ボス戦の1問ごとに、専用の問題をランダムに入れる(1回の挑戦で、なるべく重ならないように)
+  if (!G.nodUsed) G.nodUsed = [];
+  let pool = NOD_Q.filter((x) => G.nodUsed.indexOf(x.id) < 0);
+  if (!pool.length) { G.nodUsed = []; pool = NOD_Q.slice(); }
+  const q = pool[Math.floor(Math.random() * pool.length)];
+  G.nodUsed.push(q.id);
+  G.qs[G.qi] = q;
+}
 function joFinalStage(i) {
   const v = (k, d) => (i > k ? "【" + "ABC"[k] + ": " + JO_FINAL.multi[k].c[0] + (k === 1 ? "回" : "") + "】" : "【" + "ABC"[k] + "】");
   const sent = "胸骨圧迫は、成人の場合は胸が約" + v(0) + "沈み込む深さで行います。また、1分間に" + v(1) + "回のテンポで圧迫します。小児の場合は、" + v(2) + "で胸骨圧迫を行います。";
@@ -1930,6 +1948,7 @@ function next() {
     if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
   }
   if (G.en === RARE_EN) G.rareDone = true;
+  if (G.en === 9) useNodQ();
   if (G.corrIntro) { // 無限回廊への突入
     G.corrIntro = false; G.corrBanner = true; G.appear = true;
     if (G.en === 9 || G.en === 19 || G.en === 24) G.en = enemyIdx(G.mode);
