@@ -729,7 +729,9 @@ function runTier(run) {
 function tierOf(r) { const v = (r && r.titleTier) || 0; return v >= 20 ? v - 20 : 0; }
 function myTier() { const me = uid ? rows.find((r) => r.id === uid) : null; return Math.max(tierOf(me), localTier); }
 let localTier = 0;
-function ratingOf(r) { return (r.best || 0) * RATE_PER_CORRECT; } // 1回の挑戦での最高正解数 × 100
+function ratingOf(r) { return r.rating != null ? r.rating : (r.best || 0) * RATE_PER_CORRECT; } // 1回の挑戦での最高(正解数 × 100 + 無限回廊ボーナス)
+const CORR_BONUS = [2000, 1500, 1000, 500]; // 無限回廊を最後までクリアしたときのボーナス。受けたダメージが0,1,2,3のとき(4以上はなし)
+function corrBonus(g) { return (g && g.corrDone && !g.test) ? (CORR_BONUS[g.dmg || 0] || 0) : 0; }
 function updateMyRate() {
   const p = document.getElementById("myrate");
   if (!p) return;
@@ -1789,7 +1791,9 @@ function renderEnd(root) {
   const dl = el("dl", "kv");
   const add = (k, v) => { dl.appendChild(el("dt", null, k)); dl.appendChild(el("dd", null, v)); };
   if (G.mode === "rate") {
-    add("今回のレート", ((G.correct - (G.nodCorrect || 0)) * RATE_PER_CORRECT).toLocaleString("en-US") + (G.nodDone ? "(裏ボス戦は数えません)" : ""));
+    add("今回のレート", ((G.correct - (G.nodCorrect || 0)) * RATE_PER_CORRECT + corrBonus(G)).toLocaleString("en-US") + (G.nodDone ? "(裏ボス戦は数えません)" : ""));
+    if (corrBonus(G)) add("無限回廊クリアボーナス", "+" + corrBonus(G).toLocaleString("en-US") + "(受けたダメージ " + (G.dmg || 0) + ")");
+    else if (G.corrDone && !G.test) add("無限回廊クリアボーナス", "なし(受けたダメージ " + (G.dmg || 0) + ")");
     if (G.total != null) add("自己ベストのレート", G.total.toLocaleString("en-US") + (G.newBest ? "(更新!)" : ""));
   }
   add("今回の正答率", G.answered ? Math.round(G.correct / G.answered * 100) + "%" : "-");
@@ -1881,7 +1885,7 @@ function pick(k) {
     if (G.en !== 9 && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
-    else { G.hp--; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
+    else { G.hp--; G.dmg = (G.dmg || 0) + 1; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
   } else if (!ok) G.hp--;
   render();
 }
@@ -2525,6 +2529,7 @@ async function saveRun(run) {
     const answered = (prev.answered || 0) + ra;
     const correct = (prev.correct || 0) + rc;
     const best = Math.max(prev.best || 0, rc);
+    const runRating = rc * RATE_PER_CORRECT + corrBonus(run), rating = Math.max(ratingOf(prev), runRating); // 無限回廊ボーナスは、その回のレートに足す
     const tier = Math.max(tierOf(prev), runTier(run));
     localTier = Math.max(localTier, tier);
     await ref.set({
@@ -2537,11 +2542,11 @@ async function saveRun(run) {
       titleTier: tier ? tier + 20 : 0,
       bestStreak: Math.max(prev.bestStreak || 0, run.maxStreak),
       rate: answered ? correct / answered : 0,
-      rating: best * RATE_PER_CORRECT,
+      rating: rating,
       updatedAt: Date.now()
     });
-    run.total = best * RATE_PER_CORRECT;
-    run.newBest = rc > (prev.best || 0);
+    run.total = rating;
+    run.newBest = runRating > ratingOf(prev);
     run.save = "saved";
   } catch (e) {
     run.save = "failed";
