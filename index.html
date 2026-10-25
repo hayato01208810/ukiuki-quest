@@ -1675,7 +1675,7 @@ function renderGame(root) {
   if (tut) { tl.appendChild(el("div", null, "チュートリアル")); tl.appendChild(el("div", null, "練習 " + (G.qi + 1) + " / " + TUT.length)); }
   else if (G.aed) { tl.appendChild(el("div", null, "蘇生チャレンジ")); tl.appendChild(el("div", null, "もんだい " + (G.aed.i + 1) + " / " + AEDQ.length)); }
   else if (G.corridor) { tl.appendChild(el("div", null, "無限回廊")); tl.appendChild(el("div", null, (G.qi - G.corrStart + 1) + "問目 / 全" + (G.qs.length - G.corrStart) + "問")); }
-  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9) tl.appendChild(el("div", "tagst", "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
+  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9) tl.appendChild(el("div", "tagst", G.cboss ? "回廊のボス!" : "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
   const tr = el("div", "box ov tr");
   tr.appendChild(el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"));
   const br = el("div", "box ov br");
@@ -1900,8 +1900,8 @@ function pick(k) {
   if (G.mode !== "tutorial") {
     G.answered++;
     if (!G.test && G.mode !== "review") recStat(curQ(), ok); // 裏ボス戦の専用問題も、分析に数える
-    if (G.en !== 9 && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
-    if (G.en === 9) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
+    if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
+    if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
     else { G.hp--; G.dmg = (G.dmg || 0) + 1; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
   } else if (!ok) G.hp--;
@@ -1934,7 +1934,7 @@ function next() {
   if (G.mode === "rate") { // 裏ボス(ヌードルモンスター): 自分の体力が1になったとき、ラスボス戦の前に1回だけ現れる。体力5(5回正解で撃破)
     if (G.nodPhase && G.bossHp <= 0) G.nodPhase = false;
     if (G.nodPhase) { G.en = 9; G.appear = false; }
-    else if (G.hp === 1 && !G.nodDone && !bossZone()) { // おじさん・エビサンダルの場面でも、体力1なら裏ボスが先(負けて会えなくなるのを防ぐ)
+    else if (G.hp === 1 && !G.nodDone && !G.cboss && !bossZone()) { // おじさん・エビサンダルの場面でも、体力1なら裏ボスが先(負けて会えなくなるのを防ぐ)
       if (G.en === 10) { G.evDone = false; G.evAt = G.qi; } // おじさんの場面は、裏ボスのあとで、はじめからやり直す
       G.nodDone = true; G.nodPhase = true; G.bossHp = 5; G.bossMax = 5; G.en = 9; G.appear = true;
       G.talk = { lines: [(myName || "あなた") + "君 ちょっとこっち来てもらってもいい?"], i: 0, t0: Date.now() };
@@ -1944,12 +1944,20 @@ function next() {
       if (!G.evDone && G.evAt >= G.qi) G.evAt = G.qi + 5; // おじさんは、裏ボスのあとへ
     }
   }
+  if (G.corridor && G.mode === "rate") { // 無限回廊の最初のボス: ヌードルモンスター(体力5。ふつうの問題。倒すまで続く)
+    if (G.cboss && G.bossHp <= 0) G.cboss = false;
+    if (G.cboss) { G.en = 9; G.appear = false; }
+    else if (!G.cbossDone && !G.nodPhase && G.en !== 10 && G.en !== 11 && G.qi >= G.cbossAt) {
+      G.cbossDone = true; G.cboss = true; G.bossHp = 5; G.bossMax = 5; G.en = 9; G.appear = true;
+      G.talk = { lines: ["…また会ったな、" + (myName || "あなた") + "君。", "ここから先は、そう簡単には通さんぞ!"], i: 0, t0: Date.now() };
+    }
+  }
   if (B && !G.nodPhase && bossZone()) { // ボス戦
     G.en = B.en;
     if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
   }
   if (G.en === RARE_EN) G.rareDone = true;
-  if (G.en === 9) useNodQ();
+  if (G.en === 9 && !G.cboss) useNodQ(); // 無限回廊のボスは、ふつうの問題
   if (G.corrIntro) { // 無限回廊への突入
     G.corrIntro = false; G.corrBanner = true; G.appear = true;
     if (G.en === 9 || G.en === 19 || G.en === 24) G.en = enemyIdx(G.mode);
@@ -1974,6 +1982,7 @@ function enterCorridor() {
   G.corridor = true; G.corrStart = G.qs.length; G.corrIntro = true;
   G.snap = { answered: G.answered, correct: G.correct, hp: G.hp }; // 称号は、ここまでの成績で決める
   G.qs = G.qs.concat(list);
+  G.cbossAt = G.corrStart + Math.max(1, Math.floor(list.length / CORR_BG_N) - 5); // 最初のステージの、さいごの5問から、ヌードルモンスター
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
   return true;
 }
