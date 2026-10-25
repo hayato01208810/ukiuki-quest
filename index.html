@@ -965,8 +965,8 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
-  if (G && G.mode === "rate" && G.corridor && G.en !== 9) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
+  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
+  if (G && G.mode === "rate" && G.corridor && (G.en !== 9 || G.cboss)) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
   else if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
   cv.id = "scene"; cv.width = W; cv.height = H;
