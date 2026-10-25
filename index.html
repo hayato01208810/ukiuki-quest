@@ -1934,7 +1934,8 @@ function next() {
   if (G.mode === "rate") { // 裏ボス(ヌードルモンスター): 自分の体力が1になったとき、ラスボス戦の前に1回だけ現れる。体力5(5回正解で撃破)
     if (G.nodPhase && G.bossHp <= 0) G.nodPhase = false;
     if (G.nodPhase) { G.en = 9; G.appear = false; }
-    else if (G.hp === 1 && !G.nodDone && G.en !== 10 && G.en !== 11 && !bossZone()) {
+    else if (G.hp === 1 && !G.nodDone && !bossZone()) { // おじさん・エビサンダルの場面でも、体力1なら裏ボスが先(負けて会えなくなるのを防ぐ)
+      if (G.en === 10) { G.evDone = false; G.evAt = G.qi; } // おじさんの場面は、裏ボスのあとで、はじめからやり直す
       G.nodDone = true; G.nodPhase = true; G.bossHp = 5; G.bossMax = 5; G.en = 9; G.appear = true;
       G.talk = { lines: [(myName || "あなた") + "君 ちょっとこっち来てもらってもいい?"], i: 0, t0: Date.now() };
       const tail = (!G.evDone && G.evAt >= G.qi) ? 2 : 0; // おじさんの2問ぶん
