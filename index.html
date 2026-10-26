@@ -1302,6 +1302,19 @@ function clawSlashes(scn, alive) { // 斜めの爪あと(3本)
   });
 }
 // ヌードルモンスターの攻撃: 構え→フルスイング→赤い斬撃のカットイン(コマ数多め)
+const XW = [["nd-w1.png", 178, 189], ["nd-w2.png", 172, 221], ["nd-w3.png", 195, 198], ["nd-w4.png", 174, 205], ["nd-w5.png", 184, 224], ["nd-w6.png", 233, 257], ["nd-w7.png", 238, 217], ["nd-w8.png", 212, 229], ["nd-w9.png", 236, 301]]; // ヌードルモンスター・真・最終形態の攻撃(9コマ)
+function awakenAttack(wrap, img) { // 不正解のとき: 翼をひろげて、ぼうでなぎはらうカットイン
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement;
+    if (!scn || !wrap.isConnected) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    img.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(0,-6%) scale(.94)", offset: .5 }, { transform: "translate(0,0) scale(1.1)" }], { duration: 420, easing: "ease-in-out" });
+    setTimeout(() => {
+      if (!alive()) return;
+      playSeq(scn, XW, { bg: "radial-gradient(circle at 50% 50%,#7a1050 0%,#220318 70%,#000 100%)", k: 0.33, ramp: [0.94, 1.06], dur: (i, n) => (i < 4 ? 170 : i < n - 1 ? 150 : 420), sfx: { 0: "swing", 4: "swing", 6: "slash", 8: "smash" } }, alive, () => { flashScene(scn, "#ffd0f0", 340); });
+    }, 380);
+  });
+}
 function noodleAttack(wrap, img) {
   requestAnimationFrame(() => {
     const scn = wrap.parentElement;
@@ -1474,6 +1487,9 @@ function enemyEl() {
   } else if (G.state === "fb" && can && !G.played && G.en === 9) {
     G.played = true;
     noodleAttack(wrap, img);
+  } else if (G.state === "fb" && can && !G.played && G.en === 30) {
+    G.played = true;
+    awakenAttack(wrap, img);
   } else if (G.state === "fb" && can && !G.played && G.en === 11) {
     G.played = true;
     ebiPounce(wrap, img);
@@ -2020,6 +2036,7 @@ function enterCorridor() {
   G.qs = G.qs.concat(list);
   G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; G.cbDef = 0; G.cbNext = G.cbAt[0]; // 最初のボスが出はじめる位置(ステージのさいごの5問)
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
+  XW.forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); }); // 4体目のボスの攻撃の絵
   return true;
 }
 // ---- 回復キャラ(AED) ----
