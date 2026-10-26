@@ -1253,7 +1253,7 @@ function playSeq(scn, frames, o, alive, done) {
   const cin = document.createElement("div");
   cin.style.cssText = "position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:" + o.bg + ";overflow:hidden;line-height:0;";
   const box = document.createElement("div"); box.style.cssText = "display:flex;align-items:center;justify-content:center;width:100%;height:100%;";
-  const ims = frames.map((f) => { const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false; im.style.cssText = "display:none;height:" + (f[2] * o.k) + "%;width:auto;max-width:none;image-rendering:pixelated;"; box.appendChild(im); return im; });
+  const ims = frames.map((f) => { const im = fxEl(f[0]); im.alt = ""; im.draggable = false; im.style.cssText = "display:none;height:" + (f[2] * o.k) + "%;width:auto;max-width:none;image-rendering:pixelated;"; box.appendChild(im); return im; });
   cin.appendChild(box); scn.appendChild(cin);
   const total = frames.reduce((n, _, i) => n + o.dur(i, frames.length), 0);
   if (box.animate) box.animate([{ transform: "scale(" + o.ramp[0] + ")" }, { transform: "scale(" + o.ramp[1] + ")" }], { duration: total, fill: "forwards", easing: "ease-in" });
@@ -1340,7 +1340,7 @@ function finalAttack(wrap, img) { // 不正解のとき: 大きなカットイ�
       cin.appendChild(rays); scn.appendChild(cin);
       rays.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(50deg)" }], { duration: 1900, easing: "linear" });
       const ims = XW5.map((f) => {
-        const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false;
+        const im = fxEl(f[0]); im.alt = ""; im.draggable = false;
         const x = W * 0.42 - f[3] * sp, y = H * 0.52 - f[4] * sp;
         im.style.cssText = "display:none;position:absolute;max-width:none;image-rendering:pixelated;left:" + x + "px;top:" + y + "px;width:" + (f[1] * sp) + "px;height:" + (f[2] * sp) + "px;";
         cin.appendChild(im); return im;
@@ -1406,7 +1406,7 @@ function bigAttack(wrap, img, FR, o) { // 不正解のとき: 桃色の羽を連
       cin.appendChild(rays); scn.appendChild(cin);
       rays.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(60deg)" }], { duration: 2400, easing: "linear" });
       const ims = FR.map((f) => {
-        const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false;
+        const im = fxEl(f[0]); im.alt = ""; im.draggable = false;
         im.style.cssText = "display:none;position:absolute;max-width:none;image-rendering:pixelated;left:" + (W * f[5] - f[3] * sp) + "px;top:" + (H * 0.45 - f[4] * sp) + "px;width:" + (f[1] * sp) + "px;height:" + (f[2] * sp) + "px;";
         cin.appendChild(im); return im;
       });
@@ -1437,6 +1437,13 @@ function awakenAttack(wrap, img) { // 不正解のとき: 翼をひろげて、�
     }, 380);
   });
 }
+// 攻撃の絵は大きいので、読み込みと解読が終わってから始める(間に合わないと、背景だけで絵が出ないため)。最長2.5秒まで待つ
+const FX_MAP = {}; // 読み込みずみの絵(これを複製して使うので、あらためて読み込まない)
+function fxEl(src) { const b = FX_MAP[src]; if (b) return b.cloneNode(false); const im = document.createElement("img"); im.src = src; return im; }
+function fxGate(frames, start) {
+  const loads = frames.map((d) => { const n = d[0] || d; const im = new Image(); im.src = n; FX_KEEP.push(im); FX_MAP[n] = im; return im.decode ? im.decode().catch(() => {}) : Promise.resolve(); });
+  Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 2500))]).then(start);
+}
 function noodleAttack(wrap, img) {
   requestAnimationFrame(() => {
     const scn = wrap.parentElement;
@@ -1446,8 +1453,8 @@ function noodleAttack(wrap, img) {
     const box = document.createElement("div");
     box.style.cssText = "position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;";
     const fr = XA.map((d) => {
-      const f = document.createElement("img");
-      f.src = d[0]; f.alt = ""; f.draggable = false;
+      const f = fxEl(d[0]);
+      f.alt = ""; f.draggable = false;
       f.style.cssText = "position:absolute;bottom:0;display:none;image-rendering:pixelated;max-width:none;left:" + (wp * 0.55 - d[3] * sc) + "px;width:" + (d[1] * sc) + "px;height:" + (d[2] * sc) + "px";
       box.appendChild(f); return f;
     });
@@ -1549,7 +1556,7 @@ function ebiPounce(wrap, img) {
     const hp = wr.height;
     const box = document.createElement("div");
     box.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);z-index:3;pointer-events:none;line-height:0;bottom:" + (sr.bottom - wr.bottom - hp * 0.08) + "px;height:" + (hp * 1.6) + "px;aspect-ratio:" + (XE[0][1] / XE[0][2]) + ";transform-origin:50% 100%;";
-    const ims = XE.map((f) => { const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false; im.style.cssText = "display:none;position:absolute;left:0;top:0;width:100%;height:100%;image-rendering:pixelated;"; box.appendChild(im); return im; });
+    const ims = XE.map((f) => { const im = fxEl(f[0]); im.alt = ""; im.draggable = false; im.style.cssText = "display:none;position:absolute;left:0;top:0;width:100%;height:100%;image-rendering:pixelated;"; box.appendChild(im); return im; });
     scn.appendChild(box);
     img.style.visibility = "hidden";
     Bgm.sfx("pounce");
@@ -1608,19 +1615,19 @@ function enemyEl() {
     }
   } else if (G.state === "fb" && can && !G.played && G.en === 9) {
     G.played = true;
-    noodleAttack(wrap, img);
+    fxGate(XA.concat(XC), () => noodleAttack(wrap, img));
   } else if (G.state === "fb" && can && !G.played && G.en === 28) {
     G.played = true;
-    bigAttack(wrap, img, ZW, ZO);
+    fxGate(ZW, () => bigAttack(wrap, img, ZW, ZO));
   } else if (G.state === "fb" && can && !G.played && G.en === 29) {
     G.played = true;
-    bigAttack(wrap, img, YW, YO);
+    fxGate(YW, () => bigAttack(wrap, img, YW, YO));
   } else if (G.state === "fb" && can && !G.played && G.en === 31) {
     G.played = true;
-    finalAttack(wrap, img);
+    fxGate(XW5, () => finalAttack(wrap, img));
   } else if (G.state === "fb" && can && !G.played && G.en === 30) {
     G.played = true;
-    awakenAttack(wrap, img);
+    fxGate(XW, () => awakenAttack(wrap, img));
   } else if (G.state === "fb" && can && !G.played && G.en === 11) {
     G.played = true;
     ebiPounce(wrap, img);
@@ -2170,7 +2177,7 @@ function enterCorridor() {
   G.qs = G.qs.concat(list);
   G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; G.cbDef = 0; G.cbNext = G.cbAt[0]; // 最初のボスが出はじめる位置(ステージのさいごの5問)
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
-  XW.concat(XW5, YW, ZW).forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); }); // 4・5体目のボスの攻撃の絵
+  XW.concat(XW5, YW, ZW, XA, XC).forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); if (im.decode) im.decode().catch(() => {}); }); // 4・5体目のボスの攻撃の絵
   return true;
 }
 // ---- 回復キャラ(AED) ----
