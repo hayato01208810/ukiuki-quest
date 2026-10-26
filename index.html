@@ -1303,6 +1303,59 @@ function clawSlashes(scn, alive) { // 斜めの爪あと(3本)
 }
 // ヌードルモンスターの攻撃: 構え→フルスイング→赤い斬撃のカットイン(コマ数多め)
 const XW = [["nd-w1.png", 178, 189], ["nd-w2.png", 172, 221], ["nd-w3.png", 195, 198], ["nd-w4.png", 174, 205], ["nd-w5.png", 184, 224], ["nd-w6.png", 233, 257], ["nd-w7.png", 238, 217], ["nd-w8.png", 212, 229], ["nd-w9.png", 236, 301]]; // ヌードルモンスター・真・最終形態の攻撃(9コマ)
+// 画面ぜんたいを揺らす(はげしい攻撃用)
+function shakeEl(el, amp, ms) {
+  if (!el || typeof el.animate !== "function") return;
+  const fr = [], n = Math.max(6, Math.round(ms / 45));
+  for (let i = 0; i <= n; i++) { const d = 1 - i / n; fr.push({ transform: "translate(" + ((Math.random() * 2 - 1) * amp * d).toFixed(1) + "px," + ((Math.random() * 2 - 1) * amp * d).toFixed(1) + "px)" }); }
+  fr[fr.length - 1].transform = "translate(0,0)";
+  el.animate(fr, { duration: ms, easing: "linear" });
+}
+// ヌードルモンスター・完全体の攻撃(5コマ)。ここは、キャラの胴のいちを基準に、大きくおく: [絵, 幅, 高さ, 胴のx, 胴のy]
+const XW5 = [["nd-x1.png", 234, 197, 118, 99], ["nd-x2.png", 256, 210, 118, 103], ["nd-x3.png", 328, 226, 145, 97], ["nd-x4.png", 465, 240, 94, 105], ["nd-x5.png", 395, 202, 200, 76]];
+function finalAttack(wrap, img) { // 不正解のとき: 大きなカットイン + 画面ゆれ + 光
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement;
+    if (!scn || !wrap.isConnected) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    img.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(0,-8%) scale(.92)", offset: .5 }, { transform: "translate(0,0) scale(1.12)" }], { duration: 460, easing: "ease-in-out" });
+    shakeEl(scn, 4, 420); Bgm.sfx("rumble");
+    setTimeout(() => {
+      if (!alive()) return;
+      const W = scn.clientWidth || 360, H = scn.clientHeight || 360, sp = Math.max(W, H * 0.95) / 234 * 0.95;
+      const cin = document.createElement("div");
+      cin.style.cssText = "position:absolute;inset:0;z-index:5;overflow:hidden;line-height:0;background:radial-gradient(circle at 42% 50%,#8a1060 0%,#25031c 62%,#000 100%);";
+      const rays = document.createElement("div"); // ほとばしる光の線
+      rays.style.cssText = "position:absolute;inset:-40%;opacity:.5;mix-blend-mode:screen;background:repeating-conic-gradient(from 0deg at 42% 50%,rgba(255,120,200,.55) 0deg,rgba(255,255,255,0) 6deg,rgba(255,60,160,.35) 12deg);";
+      cin.appendChild(rays); scn.appendChild(cin);
+      rays.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(50deg)" }], { duration: 1900, easing: "linear" });
+      const ims = XW5.map((f) => {
+        const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false;
+        const x = W * 0.42 - f[3] * sp, y = H * 0.52 - f[4] * sp;
+        im.style.cssText = "display:none;position:absolute;max-width:none;image-rendering:pixelated;left:" + x + "px;top:" + y + "px;width:" + (f[1] * sp) + "px;height:" + (f[2] * sp) + "px;";
+        cin.appendChild(im); return im;
+      });
+      const durs = [300, 360, 300, 480, 760], act = [
+        () => { Bgm.sfx("swing"); },
+        () => { Bgm.sfx("whoosh"); shakeEl(scn, 3, 340); },
+        () => { Bgm.sfx("slash"); shakeEl(scn, 7, 300); flashScene(scn, "#ff9bd8", 220); },
+        () => { Bgm.sfx("boom"); shakeEl(scn, 13, 520); flashScene(scn, "#ffffff", 300); },
+        () => { Bgm.sfx("smash"); shakeEl(scn, 20, 760); flashScene(scn, "#ffffff", 460); }
+      ];
+      let t = 0;
+      XW5.forEach((f, i) => {
+        setTimeout(() => {
+          if (!alive()) return;
+          ims.forEach((m, j) => { m.style.display = j === i ? "block" : "none"; });
+          ims[i].animate([{ transform: "scale(" + (i >= 3 ? 1.12 : 1.06) + ")" }, { transform: "scale(1)" }], { duration: durs[i], easing: "ease-out" });
+          act[i]();
+        }, t);
+        t += durs[i];
+      });
+      setTimeout(() => { cin.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: "forwards" }).finished.then(() => cin.remove()).catch(() => cin.remove()); }, t + 40);
+    }, 420);
+  });
+}
 function awakenAttack(wrap, img) { // 不正解のとき: 翼をひろげて、ぼうでなぎはらうカットイン
   requestAnimationFrame(() => {
     const scn = wrap.parentElement;
@@ -1487,6 +1540,9 @@ function enemyEl() {
   } else if (G.state === "fb" && can && !G.played && G.en === 9) {
     G.played = true;
     noodleAttack(wrap, img);
+  } else if (G.state === "fb" && can && !G.played && G.en === 31) {
+    G.played = true;
+    finalAttack(wrap, img);
   } else if (G.state === "fb" && can && !G.played && G.en === 30) {
     G.played = true;
     awakenAttack(wrap, img);
@@ -2039,7 +2095,7 @@ function enterCorridor() {
   G.qs = G.qs.concat(list);
   G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; G.cbDef = 0; G.cbNext = G.cbAt[0]; // 最初のボスが出はじめる位置(ステージのさいごの5問)
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
-  XW.forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); }); // 4体目のボスの攻撃の絵
+  XW.concat(XW5).forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); }); // 4・5体目のボスの攻撃の絵
   return true;
 }
 // ---- 回復キャラ(AED) ----
