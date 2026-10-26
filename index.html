@@ -1440,10 +1440,15 @@ function awakenAttack(wrap, img) { // 不正解のとき: 翼をひろげて、�
 // 攻撃の絵は大きいので、読み込みと解読が終わってから始める(間に合わないと、背景だけで絵が出ないため)。最長2.5秒まで待つ
 const FX_MAP = {}; // 読み込みずみの絵(これを複製して使うので、あらためて読み込まない)
 function fxEl(src) { const b = FX_MAP[src]; if (b) return b.cloneNode(false); const im = document.createElement("img"); im.src = src; return im; }
-function fxGate(frames, start) {
-  const loads = frames.map((d) => { const n = d[0] || d; const im = new Image(); im.src = n; FX_KEEP.push(im); FX_MAP[n] = im; return im.decode ? im.decode().catch(() => {}) : Promise.resolve(); });
-  Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 2500))]).then(start);
+function fxPre(frames) { // 絵を先に読み込んで、解読までしておく(重複しても、読み込みずみなら一瞬)
+  return frames.map((d) => { const n = d[0] || d; if (FX_MAP[n]) return FX_MAP[n].decode ? FX_MAP[n].decode().catch(() => {}) : Promise.resolve(); const im = new Image(); im.src = n; FX_KEEP.push(im); FX_MAP[n] = im; return im.decode ? im.decode().catch(() => {}) : Promise.resolve(); });
 }
+function fxGate(frames, start) {
+  Promise.race([Promise.all(fxPre(frames)), new Promise((r) => setTimeout(r, 2500))]).then(start);
+}
+// 回廊のボスごとの絵(ボス本体 + 攻撃)。登場の3問前から、先に読み込んでおく
+function bossFx(en) { return en === 9 ? XA.concat(XC, ["nd-idle.png"]) : en === 28 ? ZW.concat(["nd-awaken.png"]) : en === 29 ? YW.concat(["nd-awaken2.png"]) : en === 30 ? XW.concat(["nd-awaken3.png"]) : en === 31 ? XW5.concat(["nd-awaken4.png"]) : []; }
+function preBoss(i) { const b = CBOSS[i]; if (!b || b.pre) return; b.pre = true; fxPre(bossFx(b.en)); }
 function noodleAttack(wrap, img) {
   requestAnimationFrame(() => {
     const scn = wrap.parentElement;
@@ -2131,6 +2136,7 @@ function next() {
       G.cboss = false; G.cbDef = (G.cbDef || 0) + 1;
       if (G.cbN < CBOSS.length) G.cbNext = G.qi + Math.max(1, Math.floor((G.qs.length - G.corrStart) / CORR_BG_N) - (CBOSS[G.cbN].span || 5));
     }
+    if (!G.cboss && G.cbN < CBOSS.length && G.qi >= G.cbNext - 3) preBoss(G.cbN); // 次のボスの絵を、3問前から読み込む
     if (G.cboss) { G.en = CBOSS[G.cbN - 1].en; G.appear = false; }
     else if (G.cbN < CBOSS.length && !G.nodPhase && G.en !== 10 && G.en !== 11 && G.qi >= G.cbNext) {
       const cb = CBOSS[G.cbN++];
@@ -2177,7 +2183,7 @@ function enterCorridor() {
   G.qs = G.qs.concat(list);
   G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; G.cbDef = 0; G.cbNext = G.cbAt[0]; // 最初のボスが出はじめる位置(ステージのさいごの5問)
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
-  XW.concat(XW5, YW, ZW, XA, XC).forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); if (im.decode) im.decode().catch(() => {}); }); // 4・5体目のボスの攻撃の絵
+  CBOSS.forEach((b) => { b.pre = false; }); preBoss(0); // 最初のボスの絵だけ先に。あとのボスは、登場の3問前から
   return true;
 }
 // ---- 回復キャラ(AED) ----
