@@ -97,6 +97,9 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i18 { animation: idle-float 1.4s ease-in-out infinite; }
 .enemy-wrap.i19 { animation: idle-sway 1.6s ease-in-out infinite; }
 .enemy-wrap.i21 { animation: idle-tall 1.8s ease-in-out infinite; }
+.enemy-wrap.i32 { animation: idle-wobble 1.2s ease-in-out infinite; }
+.enemy-wrap.i33 { animation: idle-buzz 0.7s ease-in-out infinite; }
+.enemy-wrap.i34 { animation: idle-hop 1.3s ease-in-out infinite; }
 .enemy-wrap.i25 { animation: idle-stomp 1.4s ease-in infinite; }
 .enemy-wrap.i26 { animation: idle-wobble 1.1s ease-in-out infinite; }
 .enemy-wrap.i27 { animation: idle-sway 1.5s ease-in-out infinite; }
@@ -399,8 +402,8 @@ const CBOSS = [ // 無限回廊のボス: 各ステージのさいごの5問(完
 const CORR_BG_N = 7; // 無限回廊の背景の数(廃墟のプール)
 const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
-  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
-  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" },
+  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
+  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" },
   review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
@@ -436,7 +439,10 @@ const ENEMIES = [
   { src: "nd-awaken.png", h: 56, ar: 1.132, alt: "覚醒ヌードルモンスター", tag: "回廊ボス", where: "【ボス】無限回廊の2つめのステージの最後。体力5(5回正解で撃破)" },
   { src: "nd-awaken2.png", h: 62, ar: 1.416, alt: "ヌードルモンスター・最終形態", tag: "回廊ボス", where: "【ボス】無限回廊の3つめのステージの最後。体力5(5回正解で撃破)" },
   { src: "nd-awaken3.png", h: 62, ar: 0.876, alt: "ヌードルモンスター・真・最終形態", tag: "回廊ボス", where: "【ボス】無限回廊の4つめのステージの最後。体力5(5回正解で撃破)" },
-  { src: "nd-awaken4.png", h: 66, ar: 1.159, alt: "ヌードルモンスター・完全体", tag: "回廊ボス", where: "【ボス】無限回廊の5つめのステージの最後。体力10(10回正解で撃破)。ビート板の翼は無限に増殖し、ヌードルは龍の如く伸びる。泳ぎのすべてを極めし者…それが、彼の最終形態。" }
+  { src: "nd-awaken4.png", h: 66, ar: 1.159, alt: "ヌードルモンスター・完全体", tag: "回廊ボス", where: "【ボス】無限回廊の5つめのステージの最後。体力10(10回正解で撃破)。ビート板の翼は無限に増殖し、ヌードルは龍の如く伸びる。泳ぎのすべてを極めし者…それが、彼の最終形態。" },
+  { src: "enemy25.png", h: 56, ar: 1.095, alt: "ストリームラインヘルパーの敵" },
+  { src: "enemy26.png", h: 46, ar: 1.334, alt: "水質モニターの敵" },
+  { src: "enemy27.png", h: 58, ar: 0.911, alt: "青いゴミ箱の敵" }
 ]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
 function enemyIdx(mode) {
   const m = MODES[mode];
@@ -1229,7 +1235,7 @@ function preloadFx() {
   const names = [];
   for (let k = 1; k <= 9; k++) names.push("enemy" + k + ".png");
   for (let k = 10; k <= 17; k++) names.push("enemy" + k + ".png");
-  names.push("enemy-boss1.png", "chu-bg.jpg", "jo-bg.jpg", "enemy21.png", "enemy22.png", "enemy23.png", "enemy24.png");
+  names.push("enemy-boss1.png", "chu-bg.jpg", "jo-bg.jpg", "enemy21.png", "enemy22.png", "enemy23.png", "enemy24.png", "enemy25.png", "enemy26.png", "enemy27.png");
   for (let k = 1; k <= RATE_BG_N; k++) names.push("rate-bg" + k + ".jpg");
   names.push("ij-oji.png", "ij-ebi.png", "nd-awaken.png", "nd-awaken2.png", "nd-awaken3.png", "nd-awaken4.png");
   XB.concat(XE).forEach((d) => names.push(d[0]));
@@ -2484,7 +2490,7 @@ function enDesc(i) {
   MODE_KEYS.forEach((k) => { if (MODES[k].enemies.indexOf(i) >= 0) where.push(MODES[k].name); });
   return "出現: " + (E.where || where.join(" / "));
 }
-const STF_IDX = [25, 26, 27]; // 図鑑の番号が stf- の敵
+const STF_IDX = [25, 26, 27, 32, 33, 34]; // 図鑑の番号が stf- の敵
 function zkList() { // 図鑑の並び: ふつうの敵(shf-) → stf- の敵 → ボス・特別な敵(最後)
   const pad = (n) => String(n).padStart(3, "0");
   const normal = [], stf = [], sp = [];
