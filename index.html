@@ -1960,9 +1960,11 @@ function next() {
     return;
   }
   if (G.aed) { aedNext(); return; }
+  if (G.fixedEn != null) G.hp = maxHp(G.mode); // 図鑑からのテスト対戦: 体力はへらない
   if (G.hp <= 0) { if (G.mode === "rate" && !G.aedDone) { startAed(); return; } endRun(false); return; }
   G.qi++;
   const B = MODES[G.mode].boss;
+  if (G.fixedEn != null && G.qi >= G.qs.length) extendQs(20);
   if (B && B.until && G.bossStarted && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ラスボスは、倒すまで問題が続く
   if (G.qi >= G.qs.length) { // レート戦のラスボスをたおしたら、まだ出ていない問題を、すべて出す「無限回廊」へ
     if (!(G.mode === "rate" && !G.corridor && enterCorridor())) { G.corrDone = !!G.corridor; endRun(true); return; }
@@ -2008,6 +2010,7 @@ function next() {
     G.en = B.en;
     if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
   }
+  if (G.fixedEn != null) { G.en = G.fixedEn; G.appear = false; if (isBossEn(G.en) && G.bossHp <= 0) G.bossHp = G.bossMax; } // 図鑑のテスト対戦
   if (G.en === RARE_EN) G.rareDone = true;
   if (G.en === 9 && !G.cboss) useNodQ(); // 無限回廊のボスは、ふつうの問題
   if (G.corrIntro) { // 無限回廊への突入
@@ -2367,6 +2370,19 @@ function zkList() { // 図鑑の並び: ふつうの敵(shf-) → stf- の敵 �
   ENEMIES.forEach((E, i) => { if (E.hidden) return; if (STF_IDX.indexOf(i) >= 0) stf.push(i); else if (E.tag) sp.push(i); else normal.push(i); });
   return normal.map((i, k) => ({ i: i, code: "shf-" + pad(k + 1) })).concat(stf.map((i, k) => ({ i: i, code: "stf-" + pad(k + 1) })), sp.map((i) => ({ i: i, code: "" })));
 }
+// 図鑑から、その敵と戦ってためす(GMだけ。記録されない。体力はへらない。ボスは倒しても、また出てくる)
+function testBattle(i) {
+  const keep = prog.jo; prog.jo = true;
+  startMode("rate");
+  prog.jo = keep;
+  if (!G) return;
+  const ci = CBOSS.findIndex((c) => c.en === i);
+  const bh = ci >= 0 ? CBOSS[ci].hp : i === 12 ? 3 : i === 19 ? 5 : i === 24 ? 3 : 5;
+  G.test = true; G.fixedEn = i; G.evDone = true; G.evAt = -1; G.nodDone = true; G.rareDone = true;
+  G.en = i; G.appear = true; G.cbN = ci >= 0 ? ci + 1 : 0; G.cboss = ci >= 0;
+  if (isBossEn(i)) { G.bossHp = bh; G.bossMax = bh; }
+  render(); window.scrollTo({ top: 0 });
+}
 function renderZukan(root) {
   const b = el("div", "box stack");
   b.appendChild(el("h2", null, "敵キャラ図鑑"));
@@ -2416,6 +2432,12 @@ function renderZukan(root) {
         eb.onclick = () => { zkEdit = i; render(); };
         info.appendChild(eb);
       }
+    }
+    if (STANDALONE && db && isAdmin()) {
+      const tb = el("button", "btn sub small", "この敵と戦う(GM・記録されません)");
+      tb.type = "button"; tb.style.marginTop = "6px";
+      tb.onclick = () => testBattle(i);
+      info.appendChild(tb);
     }
     card.append(pic, info);
     b.appendChild(card);
