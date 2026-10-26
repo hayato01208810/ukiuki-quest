@@ -1356,6 +1356,52 @@ function finalAttack(wrap, img) { // 不正解のとき: 大きなカットイ�
     }, 420);
   });
 }
+// ヌードルモンスター・第二形態(翼)の攻撃(7コマ): [絵, 幅, 高さ, 胴のx, 胴のy, 画面での胴のよこいち]
+const YW = [["nd-y1.png", 281, 223, 130, 90, .5], ["nd-y2.png", 356, 281, 140, 110, .5], ["nd-y3.png", 357, 309, 135, 125, .5], ["nd-y4.png", 423, 329, 200, 180, .5], ["nd-y5.png", 852, 219, 150, 85, .24], ["nd-y6.png", 628, 290, 395, 95, .5], ["nd-y7.png", 1377, 372, 770, 90, .5]];
+function wingAttack(wrap, img) { // 不正解のとき: 桃色の羽を連射して、大きな羽がせまってくる
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement;
+    if (!scn || !wrap.isConnected) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    img.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(0,-8%) scale(.93)", offset: .5 }, { transform: "translate(0,0) scale(1.1)" }], { duration: 440, easing: "ease-in-out" });
+    shakeEl(scn, 3, 400); Bgm.sfx("rumble");
+    setTimeout(() => {
+      if (!alive()) return;
+      const W = scn.clientWidth || 360, H = scn.clientHeight || 360, sp = W / 400;
+      const cin = document.createElement("div");
+      cin.style.cssText = "position:absolute;inset:0;z-index:5;overflow:hidden;line-height:0;background:radial-gradient(circle at 50% 45%,#8a1060 0%,#25031c 62%,#000 100%);";
+      const rays = document.createElement("div");
+      rays.style.cssText = "position:absolute;inset:-40%;opacity:.45;mix-blend-mode:screen;background:repeating-conic-gradient(from 0deg at 50% 45%,rgba(255,120,200,.55) 0deg,rgba(255,255,255,0) 6deg,rgba(255,60,160,.35) 12deg);";
+      cin.appendChild(rays); scn.appendChild(cin);
+      rays.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(60deg)" }], { duration: 2400, easing: "linear" });
+      const ims = YW.map((f) => {
+        const im = document.createElement("img"); im.src = f[0]; im.alt = ""; im.draggable = false;
+        im.style.cssText = "display:none;position:absolute;max-width:none;image-rendering:pixelated;left:" + (W * f[5] - f[3] * sp) + "px;top:" + (H * 0.45 - f[4] * sp) + "px;width:" + (f[1] * sp) + "px;height:" + (f[2] * sp) + "px;";
+        cin.appendChild(im); return im;
+      });
+      const durs = [260, 260, 260, 300, 380, 380, 800], act = [
+        () => { Bgm.sfx("swing"); },
+        () => { Bgm.sfx("whoosh"); shakeEl(scn, 3, 300); },
+        () => { Bgm.sfx("whoosh"); shakeEl(scn, 5, 300); },
+        () => { Bgm.sfx("slash"); shakeEl(scn, 8, 320); flashScene(scn, "#ff9bd8", 220); },
+        () => { Bgm.sfx("slash"); shakeEl(scn, 11, 380); flashScene(scn, "#ff9bd8", 240); },
+        () => { Bgm.sfx("boom"); shakeEl(scn, 16, 480); flashScene(scn, "#ffffff", 280); },
+        () => { Bgm.sfx("smash"); shakeEl(scn, 22, 800); flashScene(scn, "#ffffff", 460); }
+      ];
+      let t = 0;
+      YW.forEach((f, i) => {
+        setTimeout(() => {
+          if (!alive()) return;
+          ims.forEach((m, j) => { m.style.display = j === i ? "block" : "none"; });
+          ims[i].animate([{ transform: "scale(" + (i >= 5 ? 1.12 : 1.05) + ")" }, { transform: "scale(1)" }], { duration: durs[i], easing: "ease-out" });
+          act[i]();
+        }, t);
+        t += durs[i];
+      });
+      setTimeout(() => { cin.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: "forwards" }).finished.then(() => cin.remove()).catch(() => cin.remove()); }, t + 40);
+    }, 440);
+  });
+}
 function awakenAttack(wrap, img) { // 不正解のとき: 翼をひろげて、ぼうでなぎはらうカットイン
   requestAnimationFrame(() => {
     const scn = wrap.parentElement;
@@ -1540,6 +1586,9 @@ function enemyEl() {
   } else if (G.state === "fb" && can && !G.played && G.en === 9) {
     G.played = true;
     noodleAttack(wrap, img);
+  } else if (G.state === "fb" && can && !G.played && G.en === 28) {
+    G.played = true;
+    wingAttack(wrap, img);
   } else if (G.state === "fb" && can && !G.played && G.en === 31) {
     G.played = true;
     finalAttack(wrap, img);
@@ -2095,7 +2144,7 @@ function enterCorridor() {
   G.qs = G.qs.concat(list);
   G.cbAt = CBOSS.map((b, i) => G.corrStart + Math.max(1, Math.floor(list.length * (i + 1) / CORR_BG_N) - (b.span || 5))); G.cbN = 0; G.cbDef = 0; G.cbNext = G.cbAt[0]; // 最初のボスが出はじめる位置(ステージのさいごの5問)
   for (let k = 1; k <= CORR_BG_N; k++) { const im = new Image(); im.src = "corr-bg" + k + ".jpg"; FX_KEEP.push(im); }
-  XW.concat(XW5).forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); }); // 4・5体目のボスの攻撃の絵
+  XW.concat(XW5, YW).forEach((d) => { const im = new Image(); im.src = d[0]; FX_KEEP.push(im); }); // 4・5体目のボスの攻撃の絵
   return true;
 }
 // ---- 回復キャラ(AED) ----
