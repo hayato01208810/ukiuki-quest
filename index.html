@@ -220,6 +220,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .kv dd { margin: 0; text-align: right; }
 
 .rk-del { grid-column: 2 / -1; justify-self: start; padding: 6px 10px; font: inherit; font-size: 12px; color: #ffb0b0; background: transparent; border: 1px solid #b04a4a; border-radius: 8px; cursor: pointer; }
+.top-home { width: 100%; margin-bottom: 12px; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .count { color: var(--muted); font-size: 0.9rem; }
@@ -1688,6 +1689,12 @@ function render() {
     else if (view === "stats") renderStats(root);
     else if (view === "name") renderName(root);
     else renderHome(root);
+    if (view === "settings" || view === "qadd" || view === "zukan" || view === "stats") { // 縦に長い画面は、上にもホームに戻るボタンを置く
+      const top = el("button", "btn sub top-home", "◀ ホームに戻る");
+      top.type = "button";
+      top.onclick = () => { view = "home"; render(); window.scrollTo({ top: 0 }); };
+      root.insertBefore(top, root.firstChild);
+    }
   }
   else if (G.state === "intro") renderIntro(root);
   else if (G.state === "tutdone") renderTutDone(root);
