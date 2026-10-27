@@ -102,6 +102,8 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i34 { animation: idle-hop 1.3s ease-in-out infinite; }
 .enemy-wrap.i35 { animation: idle-hop 1.1s ease-in-out infinite; }
 .enemy-wrap.i36 { animation: idle-wobble 1.3s ease-in-out infinite; }
+.enemy-wrap.i37 { animation: idle-float 1.4s ease-in-out infinite; }
+.enemy-wrap.i38 { animation: idle-squash 1.2s ease-in-out infinite; }
 .enemy-wrap.i25 { animation: idle-stomp 1.4s ease-in infinite; }
 .enemy-wrap.i26 { animation: idle-wobble 1.1s ease-in-out infinite; }
 .enemy-wrap.i27 { animation: idle-sway 1.5s ease-in-out infinite; }
@@ -403,10 +405,10 @@ const CBOSS = [ // 無限回廊のボス: 各ステージのさいごの5問(完
 ];
 const CORR_BG_N = 7; // 無限回廊の背景の数(廃墟のプール)
 const MODES = {
-  chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
-  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
-  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" },
-  review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
+  chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
+  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
+  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / クリアで称号 / 正解1問=100レート / 1回の最高記録でランキング" },
+  review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
 const ENEMIES = [
@@ -446,7 +448,9 @@ const ENEMIES = [
   { src: "enemy26.png", h: 46, ar: 1.334, alt: "水質モニターの敵" },
   { src: "enemy27.png", h: 58, ar: 0.911, alt: "青いゴミ箱の敵" },
   { src: "enemy28.png", h: 44, ar: 1.176, alt: "セキセイインコの敵" },
-  { src: "enemy29.png", h: 52, ar: 0.880, alt: "アヒルのおもちゃの敵" }
+  { src: "enemy29.png", h: 52, ar: 0.880, alt: "アヒルのおもちゃの敵" },
+  { src: "enemy30.png", h: 46, ar: 1.505, alt: "黄色い魚の敵" },
+  { src: "enemy31.png", h: 48, ar: 1.107, alt: "茶色いトゲトゲの敵" }
 ]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
 function enemyIdx(mode) {
   const m = MODES[mode];
@@ -1239,7 +1243,7 @@ function preloadFx() {
   const names = [];
   for (let k = 1; k <= 9; k++) names.push("enemy" + k + ".png");
   for (let k = 10; k <= 17; k++) names.push("enemy" + k + ".png");
-  names.push("enemy-boss1.png", "chu-bg.jpg", "jo-bg.jpg", "enemy21.png", "enemy22.png", "enemy23.png", "enemy24.png", "enemy25.png", "enemy26.png", "enemy27.png", "enemy28.png", "enemy29.png");
+  names.push("enemy-boss1.png", "chu-bg.jpg", "jo-bg.jpg", "enemy21.png", "enemy22.png", "enemy23.png", "enemy24.png", "enemy25.png", "enemy26.png", "enemy27.png", "enemy28.png", "enemy29.png", "enemy30.png", "enemy31.png");
   for (let k = 1; k <= RATE_BG_N; k++) names.push("rate-bg" + k + ".jpg");
   names.push("ij-oji.png", "ij-ebi.png", "nd-awaken.png", "nd-awaken2.png", "nd-awaken3.png", "nd-awaken4.png");
   XB.concat(XE).forEach((d) => names.push(d[0]));
