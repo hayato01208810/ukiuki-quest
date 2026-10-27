@@ -219,6 +219,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; text-align: right; }
 
+.rk-del { grid-column: 2 / -1; justify-self: start; padding: 6px 10px; font: inherit; font-size: 12px; color: #ffb0b0; background: transparent; border: 1px solid #b04a4a; border-radius: 8px; cursor: pointer; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .count { color: var(--muted); font-size: 0.9rem; }
@@ -2828,6 +2829,17 @@ function boardRow(r, rank) {
   if (rankBy === "rate") { big.textContent = ratingOf(r).toLocaleString("en-US"); big.appendChild(el("small", null, " R")); }
   else { big.textContent = String(r.bestStreak || 0); big.appendChild(el("small", null, "連続")); }
   li.appendChild(big);
+  if (STANDALONE && db && isAdmin() && r.id !== uid) { // ゲームマスターだけ: ランキングから消せる(テストの行などを消すため)
+    const del = el("button", "rk-del", "削除");
+    del.type = "button";
+    del.onclick = () => {
+      const msg = "ランキングから「" + String(r.name || "ななし") + "」(" + ratingOf(r).toLocaleString("en-US") + "R / " + (r.rounds || 1) + "回挑戦)を削除します。元に戻せません。よろしいですか?";
+      if (!confirm(msg)) return;
+      del.disabled = true; del.textContent = "削除中…";
+      db.doc("results/" + r.id).delete().then(() => { rows = rows.filter((x) => x.id !== r.id); renderBoard(); }).catch(() => { del.disabled = false; del.textContent = "削除"; alert("削除できませんでした。ゲームマスターとしてログインしているか確認してください。"); });
+    };
+    li.appendChild(del);
+  }
   return li;
 }
 function renderBoard() {
@@ -2849,7 +2861,8 @@ function renderBoard() {
       boardState === "ready" ? "まだ誰もレート戦に挑戦していません。最初の1人になろう。" :
       "ランキングを表示できません。このページを開き直してください。";
   }
-  sorted.forEach((r, i) => { if (i < TOP_N || r.id === uid) list.appendChild(boardRow(r, i + 1)); });
+  const gmAll = STANDALONE && db && isAdmin(); // ゲームマスターは、順位に入っていない人も見える
+  sorted.forEach((r, i) => { if (i < TOP_N || r.id === uid || gmAll) list.appendChild(boardRow(r, i + 1)); });
 }
 function setTab(mode) {
   rankBy = mode;
