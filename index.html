@@ -575,9 +575,9 @@ const Bgm = (function () {
   function musLevel() { return hushed || scene === "dungeon" ? 0 : vol; }
   // ---- BGM本体: 音声ファイル(MP3)。読み込めなかったときだけ、自動演奏で代用する ----
   // 曲は2つ: main=オープニング/ホーム、dungeon=ダンジョン(クイズ中)。場面で切りかえる(クロスフェード)
-  let scene = "main", want = "main", swTimer = null, audOk = true, dgOk = true, hmOk = true, audTimer = null, synthOn = false;
-  const T = { main: { src: "op-bgm.mp3", a: null, v: 0, fresh: true }, dungeon: { src: "dungeon-bgm.mp3", a: null, v: 0, fresh: true }, home: { src: "home-bgm.mp3", a: null, v: 0, fresh: true } };
-  function audTarget(k) { const sc = (scene === "dungeon" && !dgOk) || (scene === "home" && !hmOk) ? "main" : scene; return on && !hushed && sc === k ? 0.8 * vol : 0; }
+  let scene = "main", want = "main", swTimer = null, audOk = true, dgOk = true, hmOk = true, endOk = true, locked = false, pending = null, audTimer = null, synthOn = false;
+  const T = { main: { src: "op-bgm.mp3", a: null, v: 0, fresh: true }, dungeon: { src: "dungeon-bgm.mp3", a: null, v: 0, fresh: true }, home: { src: "home-bgm.mp3", a: null, v: 0, fresh: true }, ending: { src: "ending-bgm.mp3", a: null, v: 0, fresh: true, gain: 0.7 } }; // ending(エンドロール)は、見るときに読み込む
+  function audTarget(k) { const sc = (scene === "dungeon" && !dgOk) || (scene === "home" && !hmOk) || (scene === "ending" && !endOk) ? "main" : scene; return on && !hushed && sc === k ? 0.8 * vol * (T[k].gain || 1) : 0; }
   function audTick() {
     Object.keys(T).forEach((k) => {
       const t = T[k]; if (!t.a) return;
@@ -595,7 +595,7 @@ const Bgm = (function () {
   function startAudio() {
     if (T.main.a) return;
     try {
-      Object.keys(T).forEach((k) => {
+      Object.keys(T).filter((k) => k !== "ending").forEach((k) => {
         const a = new Audio(T[k].src);
         a.loop = true; a.preload = "auto"; a.volume = 0;
         if (k === "main") a.addEventListener("error", () => { audOk = false; T.main.a = null; startSynth(); });
@@ -720,7 +720,16 @@ const Bgm = (function () {
       applyLevel();
     },
     hush(v) { hushed = !!v; applyLevel(); },
+    roll(on) { // エンドロールの間だけ、オルゴールの曲に切りかえる(そのあいだ、ほかの場面からの切りかえは受けつけない)
+      if (on) {
+        if (!T.ending.a) { try { const a = new Audio(T.ending.src); a.loop = true; a.preload = "auto"; a.volume = 0; a.addEventListener("error", () => { endOk = false; }); T.ending.a = a; } catch (e) { endOk = false; } }
+        pending = want; locked = false; this.scene("ending"); locked = true;
+      } else {
+        locked = false; const p = pending || "main"; want = "__"; this.scene(p); pending = null;
+      }
+    },
     scene(n) {
+      if (locked) { pending = n; return; }
       if (want === n) return;
       want = n;
       if (!started) { scene = n; applyLevel(); return; }
@@ -2076,7 +2085,8 @@ function playEndroll(slides, done) {
   const skip = document.createElement("button"); skip.type = "button"; skip.className = "roll-skip"; skip.textContent = "スキップ ▶▶";
   ov.append(stage, skip); document.body.appendChild(ov);
   let i = -1, timer = 0, ended = false, cur = null;
-  const finish = () => { if (ended) return; ended = true; clearTimeout(timer); ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished.then(() => ov.remove()).catch(() => ov.remove()); if (done) done(); };
+  try { Bgm.roll(true); } catch (e) {}
+  const finish = () => { if (ended) return; ended = true; clearTimeout(timer); try { Bgm.roll(false); } catch (e) {} ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished.then(() => ov.remove()).catch(() => ov.remove()); if (done) done(); };
   const show = (node, hold) => { stage.replaceChildren(node); node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, fill: "forwards" }); clearTimeout(timer); if (hold) timer = setTimeout(adv, hold); };
   const scene = (sd) => { // 背景の中で、キャラが話す(タップで次のセリフ。おわったら次へ)
     const w = document.createElement("div"); w.className = "roll-scene";
