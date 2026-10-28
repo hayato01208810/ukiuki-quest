@@ -236,6 +236,9 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .roll-box { position: absolute; left: 12px; right: 12px; bottom: max(18px, env(safe-area-inset-bottom)); min-height: 112px; padding: 14px 16px; background: #04050c; border: 3px solid #ffd23f; border-radius: 6px; line-height: 1.8; font-size: 1.05rem; }
 .roll-says { white-space: pre-line; }
 .roll-next { margin-top: 8px; text-align: right; font-size: .78rem; color: #99a; }
+.roll-onbg { position: absolute; inset: 0; max-width: none; justify-content: center; padding: 28px 22px; }
+.roll-dim { filter: brightness(.38) saturate(.9); z-index: 0; }
+.roll-onbg > .roll-text { position: relative; z-index: 1; max-width: 520px; text-shadow: 0 2px 6px #000; font-size: 1.12rem; line-height: 2; }
 .roll-skip { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 8px 12px; font: inherit; font-size: 12px; color: #aab; background: rgba(255,255,255,.08); border: 1px solid #556; border-radius: 8px; cursor: pointer; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
@@ -2051,7 +2054,12 @@ function talkStart(lines) {
 // 無限回廊を「ダメージ0」でクリアした人に、公開日(2026/11/1 0:00 日本時間)から見せる。
 // 絵とメッセージは ENDROLL.slides に、{ img: "ファイル名", text: "メッセージ" } の形で足していく。1枚もなければ、ふつうの人には出ない(ゲームマスターの試し見だけ)。
 const ENDROLL = { opens: Date.UTC(2026, 9, 31, 15, 0, 0), sec: 6, thanks: [], slides: [
-  { scene: true, bg: "er-bg.jpg", chara: "nd-idle.png", lines: (n) => [n + "さん無限回廊カンストおめでとう🍾", "カンスト記念ムービーを準備してるよ", "私たちLGは、「安全第一」を大切にしながら、誰もが安心して過ごせる施設づくりに取り組んできました。日々の積み重ねが、みんなの笑顔と安心につながっています。"] } // プールで、仲間が話しかける
+  { scene: true, bg: "er-bg.jpg", chara: "nd-idle.png", lines: (n) => [n + "さん無限回廊カンストおめでとう🍾", "カンスト記念ムービーを準備してるよ"] }, // プールで、仲間が話しかける
+  // ここから、スライドショー(絵をつけるときは、img: "ファイル名" を足す)
+  { bg: "er-bg.jpg", text: () => "私たちLGは、「安全第一」を大切にしながら、誰もが安心して過ごせる施設づくりに取り組んできました。日々の積み重ねが、みんなの笑顔と安心につながっています。" },
+  { bg: "er-bg.jpg", text: () => "職場の仲間たちとの関わりの中で生まれる絆や信頼は、何にも代えがたい大切な財産です。一つひとつの経験が、私たちを成長させてくれます。" },
+  { bg: "er-bg.jpg", text: () => "これからも新しい経験や思い出を積み重ねながら、より良い職場を一緒につくっていきましょう。皆さんの力が、施設を支える大きな力になっています。" },
+  { bg: "er-bg.jpg", text: (n) => "ここまでプレイしてくれてありがとう！\n「" + n + "」さんなら、きっと大丈夫。どんな困難に出会っても、これまで培った知識と経験を力に変えて乗り越えていけます。\nさあ、これからも一緒に頑張ろう！" }
 ] };
 const ENDROLL_SAMPLE = [{ img: null, text: "(ここに、プールの仲間たちの絵が入ります)\n1枚め" }, { img: null, text: "(ここに、メッセージが入ります)\n2枚め" }];
 function rollOpen() { return Date.now() >= ENDROLL.opens && ENDROLL.slides.length > 0; }
@@ -2090,10 +2098,12 @@ function playEndroll(slides, done) {
     i++;
     if (i < sl.length) {
       if (sl[i].scene) { scene(sl[i]); return; }
-      const w = document.createElement("div"); w.className = "roll-slide";
+      const w = document.createElement("div"); w.className = "roll-slide" + (sl[i].bg ? " roll-onbg" : "");
+      if (sl[i].bg) { const bg = fxEl(sl[i].bg); bg.alt = ""; bg.className = "roll-bg roll-dim"; stage.replaceChildren(); w.appendChild(bg); }
       if (sl[i].img) { const im = fxEl(sl[i].img); im.alt = ""; im.draggable = false; im.className = "roll-img"; w.appendChild(im); }
-      const t = document.createElement("p"); t.className = "roll-text"; t.textContent = sl[i].text || ""; w.appendChild(t);
-      show(w, ENDROLL.sec * 1000);
+      const txt = typeof sl[i].text === "function" ? sl[i].text(myName || "あなた") : (sl[i].text || "");
+      const t = document.createElement("p"); t.className = "roll-text"; t.textContent = txt; w.appendChild(t);
+      show(w, Math.max(ENDROLL.sec * 1000, Array.from(txt).length * 150));
     } else if (i === sl.length && ENDROLL.thanks.length) {
       const w = document.createElement("div"); w.className = "roll-slide roll-thanks";
       ENDROLL.thanks.forEach((x) => { const p = document.createElement("p"); p.className = "roll-text"; p.textContent = x; w.appendChild(p); });
