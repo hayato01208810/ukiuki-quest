@@ -229,6 +229,13 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .roll-text { margin: 0; font-size: 1.05rem; line-height: 1.8; white-space: pre-line; }
 .roll-thanks { gap: 6px; }
 .roll-end { margin: 24px 0 0; font-size: 1.6rem; letter-spacing: .3em; color: #ffd23f; }
+.roll-scene { position: absolute; inset: 0; overflow: hidden; }
+.roll-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 70%; }
+.roll-chara { position: absolute; left: 50%; bottom: 30%; height: 38%; width: auto; transform: translateX(-50%); image-rendering: pixelated; animation: idle-bob 1.6s ease-in-out infinite; filter: drop-shadow(0 6px 4px rgba(0,0,0,.35)); }
+@keyframes idle-bob { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-2.5%); } }
+.roll-box { position: absolute; left: 12px; right: 12px; bottom: max(18px, env(safe-area-inset-bottom)); min-height: 112px; padding: 14px 16px; background: #04050c; border: 3px solid #ffd23f; border-radius: 6px; line-height: 1.8; font-size: 1.05rem; }
+.roll-says { white-space: pre-line; }
+.roll-next { margin-top: 8px; text-align: right; font-size: .78rem; color: #99a; }
 .roll-skip { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 8px 12px; font: inherit; font-size: 12px; color: #aab; background: rgba(255,255,255,.08); border: 1px solid #556; border-radius: 8px; cursor: pointer; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
@@ -2043,7 +2050,9 @@ function talkStart(lines) {
 // ================= エンドロール =================
 // 無限回廊を「ダメージ0」でクリアした人に、公開日(2026/11/1 0:00 日本時間)から見せる。
 // 絵とメッセージは ENDROLL.slides に、{ img: "ファイル名", text: "メッセージ" } の形で足していく。1枚もなければ、ふつうの人には出ない(ゲームマスターの試し見だけ)。
-const ENDROLL = { opens: Date.UTC(2026, 9, 31, 15, 0, 0), sec: 6, slides: [], thanks: ["ここまで あそんでくれて、", "ほんとうに ありがとう!", "プールの なかまたちより"] };
+const ENDROLL = { opens: Date.UTC(2026, 9, 31, 15, 0, 0), sec: 6, thanks: [], slides: [
+  { scene: true, bg: "er-bg.jpg", chara: "nd-idle.png", lines: (n) => [n + "さん無限回廊カンストおめでとう🍾", "カンスト記念ムービーを準備してるよ"] } // プールで、仲間が話しかける
+] };
 const ENDROLL_SAMPLE = [{ img: null, text: "(ここに、プールの仲間たちの絵が入ります)\n1枚め" }, { img: null, text: "(ここに、メッセージが入ります)\n2枚め" }];
 function rollOpen() { return Date.now() >= ENDROLL.opens && ENDROLL.slides.length > 0; }
 function rollEligible(g) { return !!(g && g.mode === "rate" && g.corrDone && !g.test && !(g.dmg || 0) && rollOpen()); }
@@ -2054,26 +2063,46 @@ function playEndroll(slides, done) {
   const stage = document.createElement("div"); stage.className = "roll-stage";
   const skip = document.createElement("button"); skip.type = "button"; skip.className = "roll-skip"; skip.textContent = "スキップ ▶▶";
   ov.append(stage, skip); document.body.appendChild(ov);
-  let i = -1, timer = 0, ended = false;
+  let i = -1, timer = 0, ended = false, cur = null;
   const finish = () => { if (ended) return; ended = true; clearTimeout(timer); ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished.then(() => ov.remove()).catch(() => ov.remove()); if (done) done(); };
-  const show = (node, hold) => { stage.replaceChildren(node); node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, fill: "forwards" }); clearTimeout(timer); timer = setTimeout(adv, hold); };
+  const show = (node, hold) => { stage.replaceChildren(node); node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, fill: "forwards" }); clearTimeout(timer); if (hold) timer = setTimeout(adv, hold); };
+  const scene = (sd) => { // 背景の中で、キャラが話す(タップで次のセリフ。おわったら次へ)
+    const w = document.createElement("div"); w.className = "roll-scene";
+    if (sd.bg) { const bg = fxEl(sd.bg); bg.alt = ""; bg.className = "roll-bg"; w.appendChild(bg); }
+    if (sd.chara) { const c = fxEl(sd.chara); c.alt = ""; c.draggable = false; c.className = "roll-chara"; w.appendChild(c); }
+    const box = document.createElement("div"); box.className = "roll-box";
+    const tx = document.createElement("div"); tx.className = "roll-says";
+    const nx = document.createElement("div"); nx.className = "roll-next"; nx.textContent = "▼ タップでつぎへ";
+    box.append(tx, nx); w.appendChild(box);
+    const lines = sd.lines(myName || "あなた"); let k = -1, typing = 0;
+    const say = () => {
+      k++;
+      if (k >= lines.length) { cur = null; adv(); return; }
+      clearInterval(typing); tx.textContent = ""; nx.style.visibility = "hidden"; Bgm.sfx("pop");
+      const chars = Array.from(lines[k]); let p = 0;
+      typing = setInterval(() => { p++; tx.textContent = chars.slice(0, p).join(""); if (p >= chars.length) { clearInterval(typing); typing = 0; nx.style.visibility = "visible"; } }, 70);
+      cur = { next: () => { if (typing) { clearInterval(typing); typing = 0; tx.textContent = lines[k]; nx.style.visibility = "visible"; } else say(); } };
+    };
+    show(w, 0); say();
+  };
   const adv = () => {
     if (ended) return;
     i++;
     if (i < sl.length) {
+      if (sl[i].scene) { scene(sl[i]); return; }
       const w = document.createElement("div"); w.className = "roll-slide";
       if (sl[i].img) { const im = fxEl(sl[i].img); im.alt = ""; im.draggable = false; im.className = "roll-img"; w.appendChild(im); }
       const t = document.createElement("p"); t.className = "roll-text"; t.textContent = sl[i].text || ""; w.appendChild(t);
       show(w, ENDROLL.sec * 1000);
-    } else if (i === sl.length) {
+    } else if (i === sl.length && ENDROLL.thanks.length) {
       const w = document.createElement("div"); w.className = "roll-slide roll-thanks";
       ENDROLL.thanks.forEach((x) => { const p = document.createElement("p"); p.className = "roll-text"; p.textContent = x; w.appendChild(p); });
       const e = document.createElement("p"); e.className = "roll-end"; e.textContent = "THE END"; w.appendChild(e);
       show(w, 7000);
     } else finish();
   };
-  ov.onclick = (e) => { if (e.target === skip) { finish(); return; } adv(); };
-  fxGate(sl.filter((x) => x.img).map((x) => x.img), adv);
+  ov.onclick = (e) => { if (e.target === skip) { finish(); return; } if (cur) cur.next(); else adv(); };
+  fxGate(sl.flatMap((x) => [x.img, x.bg, x.chara].filter(Boolean)), adv);
 }
 function renderEnd(root) {
   if (rollEligible(G) && !G.rollShown) { G.rollShown = true; setTimeout(() => playEndroll(), 600); } // ダメージ0で回廊クリア: エンドロール
