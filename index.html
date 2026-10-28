@@ -2051,7 +2051,7 @@ function talkStart(lines) {
 // 無限回廊を「ダメージ0」でクリアした人に、公開日(2026/11/1 0:00 日本時間)から見せる。
 // 絵とメッセージは ENDROLL.slides に、{ img: "ファイル名", text: "メッセージ" } の形で足していく。1枚もなければ、ふつうの人には出ない(ゲームマスターの試し見だけ)。
 const ENDROLL = { opens: Date.UTC(2026, 9, 31, 15, 0, 0), sec: 6, thanks: [], slides: [
-  { scene: true, bg: "er-bg.jpg", chara: "nd-idle.png", lines: (n) => [n + "さん無限回廊カンストおめでとう🍾", "カンスト記念ムービーを準備してるよ"] } // プールで、仲間が話しかける
+  { scene: true, bg: "er-bg.jpg", chara: "nd-idle.png", lines: (n) => [n + "さん無限回廊カンストおめでとう🍾", "カンスト記念ムービーを準備してるよ", "私たちLGは、「安全第一」を大切にしながら、誰もが安心して過ごせる施設づくりに取り組んできました。日々の積み重ねが、みんなの笑顔と安心につながっています。"] } // プールで、仲間が話しかける
 ] };
 const ENDROLL_SAMPLE = [{ img: null, text: "(ここに、プールの仲間たちの絵が入ります)\n1枚め" }, { img: null, text: "(ここに、メッセージが入ります)\n2枚め" }];
 function rollOpen() { return Date.now() >= ENDROLL.opens && ENDROLL.slides.length > 0; }
