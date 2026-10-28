@@ -222,6 +222,14 @@ header { display: flex; flex-direction: column; gap: 2px; }
 
 .rk-del { grid-column: 2 / -1; justify-self: start; padding: 6px 10px; font: inherit; font-size: 12px; color: #ffb0b0; background: transparent; border: 1px solid #b04a4a; border-radius: 8px; cursor: pointer; }
 .top-home { width: 100%; margin-bottom: 12px; }
+.roll { position: fixed; inset: 0; z-index: 1100; background: #000; color: #fff; font-family: var(--font-dot, inherit); }
+.roll-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.roll-slide { display: flex; flex-direction: column; align-items: center; gap: 18px; max-width: 560px; width: 100%; text-align: center; }
+.roll-img { max-width: 100%; max-height: 58vh; width: auto; height: auto; image-rendering: pixelated; }
+.roll-text { margin: 0; font-size: 1.05rem; line-height: 1.8; white-space: pre-line; }
+.roll-thanks { gap: 6px; }
+.roll-end { margin: 24px 0 0; font-size: 1.6rem; letter-spacing: .3em; color: #ffd23f; }
+.roll-skip { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 8px 12px; font: inherit; font-size: 12px; color: #aab; background: rgba(255,255,255,.08); border: 1px solid #556; border-radius: 8px; cursor: pointer; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .count { color: var(--muted); font-size: 0.9rem; }
@@ -2032,7 +2040,43 @@ function talkStart(lines) {
   UI.qb.replaceChildren(el("p", "q", lines[0]), el("div", "tapnext", "▼ タップでつぎへ"));
   if (UI.list) UI.list.style.visibility = "hidden"; if (UI.slot) UI.slot.style.visibility = "hidden";
 }
+// ================= エンドロール =================
+// 無限回廊を「ダメージ0」でクリアした人に、公開日(2026/11/1 0:00 日本時間)から見せる。
+// 絵とメッセージは ENDROLL.slides に、{ img: "ファイル名", text: "メッセージ" } の形で足していく。1枚もなければ、ふつうの人には出ない(ゲームマスターの試し見だけ)。
+const ENDROLL = { opens: Date.UTC(2026, 9, 31, 15, 0, 0), sec: 6, slides: [], thanks: ["ここまで あそんでくれて、", "ほんとうに ありがとう!", "プールの なかまたちより"] };
+const ENDROLL_SAMPLE = [{ img: null, text: "(ここに、プールの仲間たちの絵が入ります)\n1枚め" }, { img: null, text: "(ここに、メッセージが入ります)\n2枚め" }];
+function rollOpen() { return Date.now() >= ENDROLL.opens && ENDROLL.slides.length > 0; }
+function rollEligible(g) { return !!(g && g.mode === "rate" && g.corrDone && !g.test && !(g.dmg || 0) && rollOpen()); }
+function playEndroll(slides, done) {
+  const sl = slides && slides.length ? slides : ENDROLL.slides.length ? ENDROLL.slides : ENDROLL_SAMPLE;
+  const ov = document.createElement("div");
+  ov.className = "roll";
+  const stage = document.createElement("div"); stage.className = "roll-stage";
+  const skip = document.createElement("button"); skip.type = "button"; skip.className = "roll-skip"; skip.textContent = "スキップ ▶▶";
+  ov.append(stage, skip); document.body.appendChild(ov);
+  let i = -1, timer = 0, ended = false;
+  const finish = () => { if (ended) return; ended = true; clearTimeout(timer); ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished.then(() => ov.remove()).catch(() => ov.remove()); if (done) done(); };
+  const show = (node, hold) => { stage.replaceChildren(node); node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, fill: "forwards" }); clearTimeout(timer); timer = setTimeout(adv, hold); };
+  const adv = () => {
+    if (ended) return;
+    i++;
+    if (i < sl.length) {
+      const w = document.createElement("div"); w.className = "roll-slide";
+      if (sl[i].img) { const im = fxEl(sl[i].img); im.alt = ""; im.draggable = false; im.className = "roll-img"; w.appendChild(im); }
+      const t = document.createElement("p"); t.className = "roll-text"; t.textContent = sl[i].text || ""; w.appendChild(t);
+      show(w, ENDROLL.sec * 1000);
+    } else if (i === sl.length) {
+      const w = document.createElement("div"); w.className = "roll-slide roll-thanks";
+      ENDROLL.thanks.forEach((x) => { const p = document.createElement("p"); p.className = "roll-text"; p.textContent = x; w.appendChild(p); });
+      const e = document.createElement("p"); e.className = "roll-end"; e.textContent = "THE END"; w.appendChild(e);
+      show(w, 7000);
+    } else finish();
+  };
+  ov.onclick = (e) => { if (e.target === skip) { finish(); return; } adv(); };
+  fxGate(sl.filter((x) => x.img).map((x) => x.img), adv);
+}
 function renderEnd(root) {
+  if (rollEligible(G) && !G.rollShown) { G.rollShown = true; setTimeout(() => playEndroll(), 600); } // ダメージ0で回廊クリア: エンドロール
   const sc = sceneCanvas();
   if (!G.cleared) sc.appendChild(enemyEl()); // ゲームオーバーでは敵が残る
   root.appendChild(sc);
@@ -2092,6 +2136,7 @@ function renderEnd(root) {
   home.type = "button";
   home.onclick = () => { G = null; view = "home"; render(); };
   row.append(again, see, home);
+  if (rollEligible(G)) { const rb = el("button", "btn sub", "エンドロールをもう一度見る"); rb.type = "button"; rb.onclick = () => playEndroll(); row.appendChild(rb); }
   b.appendChild(row);
   root.appendChild(b);
 }
@@ -2426,6 +2471,10 @@ function renderSettings(root) {
       next();
     };
     b.appendChild(cb);
+    const rl = el("button", "btn sub", "エンドロールを試し見(GM)");
+    rl.type = "button";
+    rl.onclick = () => playEndroll();
+    b.appendChild(rl);
     const sb = el("button", "btn sub", "分析を見る(GM)");
     sb.type = "button";
     sb.onclick = () => { view = "stats"; render(); };
