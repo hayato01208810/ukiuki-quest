@@ -239,6 +239,10 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .roll-onbg { position: absolute; inset: 0; max-width: none; justify-content: center; padding: 28px 22px; }
 .roll-dim { filter: brightness(.38) saturate(.9); z-index: 0; }
 .roll-onbg > .roll-text { position: relative; z-index: 1; max-width: 520px; text-shadow: 0 2px 6px #000; font-size: 1.12rem; line-height: 2; }
+.roll-photoslide { position: absolute; inset: 0; display: flex; flex-direction: column; background: #000; }
+.roll-photos { position: relative; flex: 1 1 auto; min-height: 0; margin: max(44px, env(safe-area-inset-top)) 10px 0; }
+.roll-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .7s ease; image-rendering: pixelated; }
+.roll-cap { position: relative; left: auto; right: auto; bottom: auto; margin: 12px 12px max(16px, env(safe-area-inset-bottom)); min-height: 0; flex: 0 0 auto; font-size: .98rem; line-height: 1.85; white-space: pre-line; }
 .roll-skip { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 8px 12px; font: inherit; font-size: 12px; color: #aab; background: rgba(255,255,255,.08); border: 1px solid #556; border-radius: 8px; cursor: pointer; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
@@ -2056,10 +2060,10 @@ function talkStart(lines) {
 const ENDROLL = { opens: Date.UTC(2026, 9, 31, 15, 0, 0), sec: 6, thanks: [], slides: [
   { scene: true, bg: "er-bg.jpg", chara: "nd-idle.png", lines: (n) => [n + "さん無限回廊カンストおめでとう🍾", "カンスト記念ムービーを準備してるよ"] }, // プールで、仲間が話しかける
   // ここから、スライドショー(絵をつけるときは、img: "ファイル名" を足す)
-  { bg: "er-bg.jpg", text: () => "私たちLGは、「安全第一」を大切にしながら、誰もが安心して過ごせる施設づくりに取り組んできました。日々の積み重ねが、みんなの笑顔と安心につながっています。" },
-  { bg: "er-bg.jpg", text: () => "職場の仲間たちとの関わりの中で生まれる絆や信頼は、何にも代えがたい大切な財産です。一つひとつの経験が、私たちを成長させてくれます。" },
-  { bg: "er-bg.jpg", text: () => "これからも新しい経験や思い出を積み重ねながら、より良い職場を一緒につくっていきましょう。皆さんの力が、施設を支える大きな力になっています。" },
-  { bg: "er-bg.jpg", text: (n) => "ここまでプレイしてくれてありがとう！\n「" + n + "」さんなら、きっと大丈夫。どんな困難に出会っても、これまで培った知識と経験を力に変えて乗り越えていけます。\nさあ、これからも一緒に頑張ろう！" }
+  { photos: ["er1-1.jpg", "er1-2.jpg", "er1-3.jpg", "er1-4.jpg", "er1-5.jpg", "er1-6.jpg"], text: () => "私たちLGは、「安全第一」を大切にしながら、誰もが安心して過ごせる施設づくりに取り組んできました。日々の積み重ねが、みんなの笑顔と安心につながっています。" },
+  { photos: ["er2-1.jpg", "er2-2.jpg", "er2-3.jpg", "er2-4.jpg", "er2-5.jpg", "er2-6.jpg"], text: () => "職場の仲間たちとの関わりの中で生まれる絆や信頼は、何にも代えがたい大切な財産です。一つひとつの経験が、私たちを成長させてくれます。" },
+  { photos: ["er3-1.jpg", "er3-2.jpg", "er3-3.jpg", "er3-4.jpg", "er3-5.jpg", "er3-6.jpg"], text: () => "これからも新しい経験や思い出を積み重ねながら、より良い職場を一緒につくっていきましょう。皆さんの力が、施設を支える大きな力になっています。" },
+  { photos: ["er4-1.jpg", "er4-2.jpg", "er4-3.jpg", "er4-4.jpg", "er4-5.jpg", "er4-6.jpg"], text: (n) => "ここまでプレイしてくれてありがとう！\n「" + n + "」さんなら、きっと大丈夫。どんな困難に出会っても、これまで培った知識と経験を力に変えて乗り越えていけます。\nさあ、これからも一緒に頑張ろう！" }
 ] };
 const ENDROLL_SAMPLE = [{ img: null, text: "(ここに、プールの仲間たちの絵が入ります)\n1枚め" }, { img: null, text: "(ここに、メッセージが入ります)\n2枚め" }];
 function rollOpen() { return Date.now() >= ENDROLL.opens && ENDROLL.slides.length > 0; }
@@ -2098,12 +2102,32 @@ function playEndroll(slides, done) {
     i++;
     if (i < sl.length) {
       if (sl[i].scene) { scene(sl[i]); return; }
-      const w = document.createElement("div"); w.className = "roll-slide" + (sl[i].bg ? " roll-onbg" : "");
-      if (sl[i].bg) { const bg = fxEl(sl[i].bg); bg.alt = ""; bg.className = "roll-bg roll-dim"; stage.replaceChildren(); w.appendChild(bg); }
-      if (sl[i].img) { const im = fxEl(sl[i].img); im.alt = ""; im.draggable = false; im.className = "roll-img"; w.appendChild(im); }
-      const txt = typeof sl[i].text === "function" ? sl[i].text(myName || "あなた") : (sl[i].text || "");
+      const sd = sl[i];
+      const txt = typeof sd.text === "function" ? sd.text(myName || "あなた") : (sd.text || "");
+      const hold = Math.max(ENDROLL.sec * 1000, Array.from(txt).length * 150, sd.photos ? sd.photos.length * 2200 : 0);
+      if (sl[i + 1] && sl[i + 1].photos) fxPre(sl[i + 1].photos); // つぎの写真を、先に読み込んでおく
+      if (sd.photos) { // 写真が、ゆっくり切りかわる(上)+メッセージ(下)
+        const w = document.createElement("div"); w.className = "roll-photoslide";
+        const pa = document.createElement("div"); pa.className = "roll-photos";
+        const ims = sd.photos.map((f) => { const im = fxEl(f); im.alt = ""; im.draggable = false; im.className = "roll-photo"; pa.appendChild(im); return im; });
+        const bx = document.createElement("div"); bx.className = "roll-box roll-cap"; bx.textContent = txt;
+        w.append(pa, bx);
+        show(w, hold);
+        const step = hold / ims.length; let p = -1;
+        const flip = () => {
+          if (ended || !w.isConnected) return;
+          p = (p + 1) % ims.length;
+          ims.forEach((m, j) => { m.style.opacity = j === p ? "1" : "0"; });
+          if (ims[p].animate) ims[p].animate([{ transform: "scale(1.0)" }, { transform: "scale(1.06)" }], { duration: step + 600, easing: "linear" });
+          if (p < ims.length - 1) setTimeout(flip, step);
+        };
+        flip();
+        return;
+      }
+      const w = document.createElement("div"); w.className = "roll-slide";
+      if (sd.img) { const im = fxEl(sd.img); im.alt = ""; im.draggable = false; im.className = "roll-img"; w.appendChild(im); }
       const t = document.createElement("p"); t.className = "roll-text"; t.textContent = txt; w.appendChild(t);
-      show(w, Math.max(ENDROLL.sec * 1000, Array.from(txt).length * 150));
+      show(w, hold);
     } else if (i === sl.length && ENDROLL.thanks.length) {
       const w = document.createElement("div"); w.className = "roll-slide roll-thanks";
       ENDROLL.thanks.forEach((x) => { const p = document.createElement("p"); p.className = "roll-text"; p.textContent = x; w.appendChild(p); });
@@ -2112,7 +2136,7 @@ function playEndroll(slides, done) {
     } else finish();
   };
   ov.onclick = (e) => { if (e.target === skip) { finish(); return; } if (cur) cur.next(); else adv(); };
-  fxGate(sl.flatMap((x) => [x.img, x.bg, x.chara].filter(Boolean)), adv);
+  fxGate(sl.slice(0, 2).flatMap((x) => [x.img, x.bg, x.chara].concat(x.photos ? x.photos.slice(0, 2) : []).filter(Boolean)), adv);
 }
 function renderEnd(root) {
   if (rollEligible(G) && !G.rollShown) { G.rollShown = true; setTimeout(() => playEndroll(), 600); } // ダメージ0で回廊クリア: エンドロール
