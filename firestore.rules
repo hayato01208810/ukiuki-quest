@@ -15,10 +15,30 @@ service cloud.firestore {
                     && request.resource.data.pw == get(/databases/$(database)/documents/config/gm).data.pw;
       allow update: if false;
     }
-    // ランキング: 誰でも見られる。書けるのは自分の行だけ
+    // 名前・数値の形が、まともかどうか(ありえない値や、長すぎる名前を書けなくする)
+    function okName(d) { return d.name is string && d.name.size() >= 1 && d.name.size() <= 24; }
+    function okNum(d, k, max) { return !(k in d) || (d[k] is number && d[k] >= 0 && d[k] <= max); }
+    // ランキング: 誰でも見られる。書けるのは自分の行だけ(消せるのはゲームマスターだけ)。
+    // ※ 点数の計算は、アプリ側で行っています。このルールでは「ありえない値」と「前より減らす書きかえ」を防ぐだけで、
+    //   本気の不正(自分で好きな点数を書く)までは防げません。
     match /results/{uid} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().size() <= 20
+        && okName(request.resource.data)
+        && okNum(request.resource.data, 'correct', 1000000)
+        && okNum(request.resource.data, 'answered', 1000000)
+        && okNum(request.resource.data, 'rounds', 100000)
+        && okNum(request.resource.data, 'clears', 100000)
+        && okNum(request.resource.data, 'best', 5000)
+        && okNum(request.resource.data, 'bestStreak', 5000)
+        && okNum(request.resource.data, 'rating', 200000)
+        && okNum(request.resource.data, 'titleTier', 40)
+        && (!('rate' in request.resource.data) || (request.resource.data.rate is number && request.resource.data.rate >= 0 && request.resource.data.rate <= 1))
+        && (resource == null
+            || (request.resource.data.get('rating', 0) >= resource.data.get('rating', 0)
+                && request.resource.data.get('rounds', 0) >= resource.data.get('rounds', 0)
+                && request.resource.data.get('answered', 0) >= resource.data.get('answered', 0)));
     }
     // 自分のプロフィール(名前・進行状況): 自分だけ
     match /data/users/{uid}/{doc=**} {
@@ -29,7 +49,9 @@ service cloud.firestore {
     match /enemies/{id} { allow read: if true; }
     // 答えの記録(分析用): 書けるのは自分の行だけ
     match /stats/{uid} {
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'updatedAt', 'q'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 24;
     }
     // ゲームマスターは、上に書いていないものも含めて、すべて読み書きできる
     // (これからアプリに機能を足しても、ルールの書きかえは要らない)
