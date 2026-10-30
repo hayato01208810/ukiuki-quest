@@ -246,6 +246,11 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .roll-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .7s ease; image-rendering: pixelated; }
 .roll-cap { position: relative; left: auto; right: auto; bottom: auto; margin: 12px 12px max(16px, env(safe-area-inset-bottom)); min-height: 0; flex: 0 0 auto; font-size: .98rem; line-height: 1.85; white-space: pre-line; }
 .roll-skip { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 8px 12px; font: inherit; font-size: 12px; color: #aab; background: rgba(255,255,255,.08); border: 1px solid #556; border-radius: 8px; cursor: pointer; }
+.logo-m { height: 1.15em; width: auto; vertical-align: -0.2em; margin-left: 6px; image-rendering: pixelated; }
+.reset-ov { position: fixed; inset: 0; z-index: 1300; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.82); }
+.reset-box { max-width: 420px; width: 100%; padding: 20px 18px; background: #0b0d1c; border: 3px solid #ffd23f; border-radius: 6px; line-height: 1.9; }
+.reset-box p { margin: 0 0 12px; white-space: pre-line; }
+.reset-box .reset-logo { display: block; height: 72px; width: auto; margin: 6px auto 12px; image-rendering: pixelated; }
 .board { display: flex; flex-direction: column; gap: 12px; }
 .board-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .count { color: var(--muted); font-size: 0.9rem; }
@@ -793,11 +798,24 @@ try {
   prog.chu = !!p.chu; prog.jo = !!p.jo;
 } catch (e) {}
 
-const TITLES = { 1: "素人ライフガード", 2: "3級ライフガード", 3: "2級ライフガード", 4: "1級ライフガード", 5: "世界一すんごいライフガード" };
-const TOP_TIER = 5;
-// レート戦1回分の称号: 到達した問題数・クリア・残りライフ・全問正解で決まる
+// 称号は、2026/11/1 0:00(日本時間)から、新しい条件に切りかわる(それまでは、これまでの称号)
+const TITLE_RESET_AT = Date.UTC(2026, 9, 31, 15, 0, 0);
+const NEW_TITLES = Date.now() >= TITLE_RESET_AT;
+const TITLES = NEW_TITLES
+  ? { 1: "見習いライフガード", 2: "素人ライフガード", 3: "毛が生えたライフガード", 4: "ぎりぎりただのライフガード", 5: "ただのライフガード", 6: "3級ライフガード", 7: "2級ライフガード", 8: "1級ライフガード", 9: "世界一すんごいライフガード" }
+  : { 1: "素人ライフガード", 2: "3級ライフガード", 3: "2級ライフガード", 4: "1級ライフガード", 5: "世界一すんごいライフガード" };
+const TOP_TIER = NEW_TITLES ? 9 : 5;
+const TIER_OFF = NEW_TITLES ? 40 : 20; // 保存値 = TIER_OFF + 段階。(旧称号は21〜25。新称号は41〜49なので、リセットされる)
+// レート戦1回分の称号
 function runTier(run) {
   if (!run || run.mode !== "rate") return 0;
+  if (NEW_TITLES) { // 新: コースロープドラゴン撃破=見習い → 回廊のボスを1体たおすごとに1段階 → 無限回廊突破=1級 → ノーダメージで突破=世界一
+    if (!run.snap) return 0; // 無限回廊に入っていない(ドラゴンを倒していない)
+    const full = !!(run.corrDone && run.cbN >= CBOSS.length && run.bossHp <= 0); // 最終ボスまでたおした
+    const layers = full ? CBOSS.length : Math.min(CBOSS.length, run.cbDef || 0);
+    if (full && !(run.dmg || 0)) return 9;
+    return layers + 1;
+  }
   const len = run.qs.length;
   const reached = run.cleared ? len : Math.min(len, run.qi + 1);
   const sn = run.snap || run; // 無限回廊に入った人は、ラスボスを倒した時点の成績で、称号を決める
@@ -810,8 +828,10 @@ function runTier(run) {
   if (reached >= 25) return 1;
   return 0;
 }
-// 保存値は新称号=20+段階(旧称号と区別するため)
-function tierOf(r) { const v = (r && r.titleTier) || 0; return v >= 20 ? v - 20 : 0; }
+function tierOf(r) { const v = (r && r.titleTier) || 0; return v >= TIER_OFF ? v - TIER_OFF : 0; }
+// テストプレイ期間中の「世界一すんごいライフガード」(旧)に贈る、記念ロゴ
+function hasLogo(r) { return !!(r && (r.logo || (NEW_TITLES && r.titleTier === 25))); }
+function logoEl() { const im = document.createElement("img"); im.src = "logo-m.png"; im.alt = ""; im.className = "logo-m"; im.draggable = false; return im; }
 function myTier() { const me = uid ? rows.find((r) => r.id === uid) : null; return Math.max(tierOf(me), localTier); }
 let localTier = 0;
 function ratingOf(r) { return r.rating != null ? r.rating : (r.best || 0) * RATE_PER_CORRECT; } // 1回の挑戦での最高(正解数 × 100 + 無限回廊ボーナス)
@@ -2002,7 +2022,7 @@ function renderGame(root) {
   else if (G.corridor) { tl.appendChild(el("div", null, "無限回廊")); tl.appendChild(el("div", null, (G.qi - G.corrStart + 1) + "問目 / 全" + (G.qs.length - G.corrStart) + "問")); }
   else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9 || G.cboss) tl.appendChild(el("div", "tagst", G.cboss ? "回廊のボス!" : "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
   const tr = el("div", "box ov tr");
-  tr.appendChild(el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"));
+  { const nmd = el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"); const me0 = uid ? rows.find((r) => r.id === uid) : null; if (hasLogo(me0)) nmd.appendChild(logoEl()); tr.appendChild(nmd); }
   const br = el("div", "box ov br");
   br.appendChild(el("span", null, "HP " + Math.max(0, G.hp) + "/" + maxHp(G.mode)));
   const hs = el("div", "hearts");
@@ -3020,7 +3040,8 @@ async function saveRun(run) {
       rounds: (prev.rounds || 0) + 1,
       clears: (prev.clears || 0) + (run.cleared ? 1 : 0),
       best: best,
-      titleTier: tier ? tier + 20 : 0,
+      titleTier: tier ? tier + TIER_OFF : 0,
+      logo: hasLogo(prev) || !!prev.logo,
       bestStreak: Math.max(prev.bestStreak || 0, run.maxStreak),
       rate: answered ? correct / answered : 0,
       rating: rating,
@@ -3036,12 +3057,36 @@ async function saveRun(run) {
 }
 
 // ================= ランキング =================
+// ================= 称号リセットのお知らせ(11/1以降、前の称号を持っていた人に、1回だけ) =================
+let resetShown = false;
+function checkTitleReset() {
+  if (resetShown || !NEW_TITLES || !db || !uid || !canSave()) return;
+  const me = rows.find((r) => r.id === uid);
+  if (!me || !(me.titleTier >= 21 && me.titleTier <= 25)) return; // 旧称号(21〜25)を持っていた人だけ
+  resetShown = true;
+  const top = me.titleTier === 25;
+  const ov = document.createElement("div"); ov.className = "reset-ov";
+  const bx = document.createElement("div"); bx.className = "reset-box";
+  const p1 = document.createElement("p"); p1.textContent = "テストプレイお疲れ様でした!\n称号の取得条件を、より難しく変更しました。これまでの称号はリセットとなります。\n再び称号の獲得を目指して、頑張ってください💪"; bx.appendChild(p1);
+  if (top) {
+    const p2 = document.createElement("p"); p2.textContent = "なお、テストプレイ期間中に「世界一すんごいライフガード」になった皆さんには、記念として、このロゴを名前の隣にプレゼントします。"; bx.appendChild(p2);
+    const im = logoEl(); im.className = "reset-logo"; bx.appendChild(im);
+  }
+  const ok = el("button", "btn", "OK"); ok.type = "button";
+  ok.onclick = () => {
+    ok.disabled = true;
+    const upd = top ? { titleTier: 0, logo: true } : { titleTier: 0 };
+    db.doc("results/" + uid).update(upd).then(() => ov.remove()).catch(() => { ov.remove(); resetShown = false; }); // 書けなかったときは、次に開いたとき、もう一度出る
+  };
+  bx.appendChild(ok); ov.appendChild(bx); document.body.appendChild(ov);
+}
 function boardRow(r, rank) {
   const li = el("li", "rw" + (r.id === uid ? " me" : "") + (rank <= 3 ? " top" : ""));
   li.appendChild(el("span", "rk", String(rank)));
   const who = el("div", "who");
   const nm = el("div", "nm2");
   nm.appendChild(el("span", tierOf(r) === TOP_TIER ? "rainbow" : null, String(r.name || "ななし").slice(0, 12)));
+  if (hasLogo(r)) nm.appendChild(logoEl());
   if (r.id === uid) nm.appendChild(el("span", "me-tag", "あなた"));
   who.appendChild(nm);
   if (tierOf(r)) who.appendChild((() => { const t = el("div", "ttl" + (tierOf(r) === TOP_TIER ? " rainbow" : "")); t.appendChild(el("div", "", "称号:")); t.appendChild(el("div", "", TITLES[tierOf(r)])); return t; })());
@@ -3480,6 +3525,7 @@ async function init() {
       rows = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
       boardState = "ready";
       renderBoard();
+      checkTitleReset();
     },
     () => { boardState = "error"; renderBoard(); }
   );
