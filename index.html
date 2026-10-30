@@ -68,6 +68,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .bossbar { position: absolute; z-index: 3; left: 6px; bottom: 6px; display: flex; align-items: center; gap: 6px; padding: 3px 10px; background: rgba(20,8,8,.82); border: 2px solid #ffb347; line-height: 1; color: #ffd9a0; font-size: .8rem; pointer-events: none; }
 .bossbar i { display: block; width: 18px; height: 12px; background: #ff8a2a; box-shadow: 0 0 6px #ff8a2a; }
 .bossbar.wide { gap: 3px; padding: 3px 6px; } .bossbar.wide i { width: 9px; }
+.bossbar.gauge { left: 6px; right: auto; padding: 3px 6px; gap: 5px; } .bossbar .gbar { width: 78px; height: 12px; background: #3a2a22; display: flex; } .bossbar.gauge .gbar i { width: auto; height: 100%; background: linear-gradient(90deg,#2a8cff,#9fe0ff); box-shadow: 0 0 6px #5ac0ff; transition: width .4s; } .bossbar .gnum { font-size: .68rem; white-space: nowrap; }
 .bossbar i.off { background: #3a2a22; box-shadow: none; }
 .ov { position: absolute; z-index: 2; pointer-events: none; line-height: 1.4; font-size: 0.82rem; padding: 3px 8px; border-width: 2px; max-width: 46%; }
 .ov.tl { top: 6px; left: 6px; }
@@ -105,6 +106,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i39 { --gc: rgba(190, 70, 255, .85); animation: idle-float 1.8s ease-in-out infinite, glowpulse 1.4s ease-in-out infinite; } /* 回廊ボス: 白骨ヌードル */
 .enemy-wrap.i37 { animation: idle-float 1.4s ease-in-out infinite; }
 .enemy-wrap.i38 { animation: idle-squash 1.2s ease-in-out infinite; }
+.enemy-wrap.i40 { --gc: rgba(80, 190, 255, .9); animation: idle-float 2.2s ease-in-out infinite, glowpulse 1.1s ease-in-out infinite; }
 .enemy-wrap.i25 { animation: idle-stomp 1.4s ease-in infinite; }
 .enemy-wrap.i26 { animation: idle-wobble 1.1s ease-in-out infinite; }
 .enemy-wrap.i27 { animation: idle-sway 1.5s ease-in-out infinite; }
@@ -429,7 +431,10 @@ const CBOSS = [ // 無限回廊のボス: 各ステージのさいごの5問(完
     after: (n) => ["…見事だ。 認めよう、" + n + "君。", "だが、この先の 高みで、最後の 者が 待っている…!"] },
   { en: 39, hp: 10, span: 10,
     lines: (n) => ["うぅ、、苦しい、、、", "この地獄から 解放してくれ、、"],
-    after: (n) => ["…あぁ、、やっと、楽に なれる…。", "ありがとう、" + n + "君…。"] }
+    after: (n) => ["…あぁ、、やっと、楽に なれる…。", "ありがとう、" + n + "君…。"] },
+  { en: 40, hp: 20, now: true, // 最終ボス: 最終階層に入ったらすぐ登場。体力は、そのときの残り問題数
+    lines: (n) => ["オレの部下を よくも やってくれたな……", "思い上がるなよ、水底に 沈めてやる"],
+    after: (n) => ["くそ、オレが 負けるなんて……"] }
 ];
 const CORR_BG_N = 7; // 無限回廊の背景の数(廃墟のプール)
 const MODES = {
@@ -479,7 +484,8 @@ const ENEMIES = [
   { src: "enemy29.png", h: 52, ar: 0.880, alt: "アヒルのおもちゃの敵" },
   { src: "enemy30.png", h: 46, ar: 1.505, alt: "黄色い魚の敵" },
   { src: "enemy31.png", h: 48, ar: 1.107, alt: "茶色いトゲトゲの敵" },
-  { src: "nd-awaken5.png", h: 68, ar: 1.454, alt: "白骨ヌードルモンスター", tag: "回廊ボス", where: "【ボス】無限回廊の6つめのステージの最後。体力10(10回正解で撃破)。地獄の底で苦しみつづける、ヌードルモンスターの成れの果て。" }
+  { src: "nd-awaken5.png", h: 68, ar: 1.454, alt: "白骨ヌードルモンスター", tag: "回廊ボス", where: "【ボス】無限回廊の6つめのステージの最後。体力10(10回正解で撃破)。地獄の底で苦しみつづける、ヌードルモンスターの成れの果て。" },
+  { src: "nd-pose.png", h: 72, ar: 1.482, alt: "ポセイドン", tag: "最終ボス", where: "【最終ボス】無限回廊の最終階層に入ると、すぐに現れる。体力は、そのときの残り問題数ぶん(全問正解で撃破)。攻撃力は通常の1.5倍。無限回廊の頂点に立つ、水底の王。" }
 ]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
 function enemyIdx(mode) {
   const m = MODES[mode];
@@ -487,7 +493,7 @@ function enemyIdx(mode) {
   return m.enemies[Math.floor(Math.random() * m.enemies.length)];
 }
 const RARE_EN = 20, RARE_P = 0.004; // 激レアの敵(看板ゾンビ): 1問ごとにこの確率で出る(約250問に1回)。1回の挑戦で1回まで
-const isCbEn = (e) => e >= 28 && e <= 31 || e === 39; // 無限回廊のボス
+const isCbEn = (e) => e >= 28 && e <= 31 || e === 39 || e === 40; // 無限回廊のボス
 const isBossEn = (e) => e === 12 || e === 9 || e === 19 || e === 24 || isCbEn(e); // 体力ゲージのある敵(中級ボス / 裏ボス / ラスボス)
 const MODE_KEYS = ["chu", "jo", "rate"];
 
@@ -1503,6 +1509,46 @@ function panelAttack(wrap, img) {
     }, 440);
   });
 }
+// ポセイドンの攻撃: 画面ぜんたい(問題の欄まで)をおおう、いちばん派手な演出
+const PS = [["nd-pa1.png"], ["nd-pa2.png"]];
+function poseidonAttack(wrap, img) {
+  requestAnimationFrame(() => {
+    const scn = wrap.parentElement;
+    if (!scn || !wrap.isConnected) return;
+    const g = G, alive = () => wrap.isConnected && G === g;
+    const body = document.body, W = window.innerWidth, H = window.innerHeight;
+    img.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(0,-10%) scale(.9)", offset: .55 }, { transform: "translate(0,0) scale(1.18)" }], { duration: 620, easing: "ease-in-out" });
+    shakeEl(body, 6, 600); Bgm.sfx("rumble");
+    setTimeout(() => {
+      if (!alive()) return;
+      const ov = document.createElement("div"); // 画面ぜんたいをおおう(問題の欄の上まで)
+      ov.style.cssText = "position:fixed;inset:0;z-index:1200;overflow:hidden;pointer-events:none;background:radial-gradient(circle at 50% 38%,#0d3a8a 0%,#04122e 60%,#000 100%);";
+      const rays = document.createElement("div");
+      rays.style.cssText = "position:absolute;inset:-60%;opacity:.55;mix-blend-mode:screen;background:repeating-conic-gradient(from 0deg at 50% 38%,rgba(120,210,255,.6) 0deg,rgba(255,255,255,0) 5deg,rgba(40,120,255,.4) 10deg);";
+      ov.appendChild(rays);
+      rays.animate([{ transform: "rotate(0deg) scale(1)" }, { transform: "rotate(70deg) scale(1.3)" }], { duration: 2800, easing: "linear" });
+      const wave = document.createElement("div"); // 下から せりあがる、水の壁
+      wave.style.cssText = "position:absolute;left:-5%;right:-5%;bottom:-10%;height:120%;background:linear-gradient(0deg,#e8f8ff 0%,#6cc8ff 25%,#1b6fe0 60%,rgba(10,50,140,0) 100%);opacity:0;transform:translateY(100%);";
+      const ims = PS.map((f, k) => { const im = fxEl(f[0]); im.alt = ""; im.draggable = false; im.style.cssText = "position:absolute;left:50%;top:" + (k ? "-6%" : "2%") + ";max-width:none;width:" + (W * (k ? 1.75 : 1.45)) + "px;height:auto;transform:translateX(-50%);display:none;image-rendering:pixelated;filter:drop-shadow(0 0 18px #7fd2ff);"; ov.appendChild(im); return im; });
+      ov.appendChild(wave); document.body.appendChild(ov);
+      const T = (ms, fn) => setTimeout(() => { if (alive()) fn(); }, ms);
+      const show = (k, sc) => { ims.forEach((m, j) => { m.style.display = j === k ? "block" : "none"; }); ims[k].animate([{ transform: "translateX(-50%) scale(" + sc + ")" }, { transform: "translateX(-50%) scale(1)" }], { duration: 520, easing: "ease-out" }); };
+      ov.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, fill: "forwards" });
+      Bgm.sfx("swing");
+      T(250, () => { show(0, 1.25); Bgm.sfx("whoosh"); shakeEl(body, 8, 500); });
+      T(800, () => { Bgm.sfx("slash"); shakeEl(body, 14, 500); flashScene(ov, "#9fe0ff", 260); });
+      T(1250, () => { show(1, 1.35); Bgm.sfx("boom"); shakeEl(body, 22, 700); flashScene(ov, "#ffffff", 360); });
+      T(1500, () => { // 水の壁が、画面のいちばん上まで せりあがる
+        wave.style.opacity = "1"; wave.animate([{ transform: "translateY(100%)" }, { transform: "translateY(-12%)" }], { duration: 900, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" });
+        Bgm.sfx("smash"); shakeEl(body, 30, 1000);
+      });
+      T(1850, () => { flashScene(ov, "#ffffff", 600); Bgm.sfx("boom"); shakeEl(body, 26, 800); });
+      T(2500, () => { Bgm.sfx("hurt"); shakeEl(body, 10, 700); wave.animate([{ transform: "translateY(-12%)", opacity: 1 }, { transform: "translateY(60%)", opacity: 0 }], { duration: 900, easing: "ease-in", fill: "forwards" }); });
+      T(3000, () => { ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished.then(() => ov.remove()).catch(() => ov.remove()); });
+      setTimeout(() => ov.remove(), 4200);
+    }, 620);
+  });
+}
 function awakenAttack(wrap, img) { // 不正解のとき: 翼をひろげて、ぼうでなぎはらうカットイン
   requestAnimationFrame(() => {
     const scn = wrap.parentElement;
@@ -1525,7 +1571,7 @@ function fxGate(frames, start) {
   Promise.race([Promise.all(fxPre(frames)), new Promise((r) => setTimeout(r, 2500))]).then(start);
 }
 // 回廊のボスごとの絵(ボス本体 + 攻撃)。登場の3問前から、先に読み込んでおく
-function bossFx(en) { return en === 9 ? XA.concat(XC, ["nd-idle.png"]) : en === 28 ? ZW.concat(["nd-awaken.png"]) : en === 29 ? YW.concat(["nd-awaken2.png"]) : en === 30 ? XW.concat(["nd-awaken3.png"]) : en === 31 ? XW5.concat(["nd-awaken4.png"]) : en === 39 ? PW.concat(["nd-awaken5.png"]) : []; }
+function bossFx(en) { return en === 9 ? XA.concat(XC, ["nd-idle.png"]) : en === 28 ? ZW.concat(["nd-awaken.png"]) : en === 29 ? YW.concat(["nd-awaken2.png"]) : en === 30 ? XW.concat(["nd-awaken3.png"]) : en === 31 ? XW5.concat(["nd-awaken4.png"]) : en === 39 ? PW.concat(["nd-awaken5.png"]) : en === 40 ? [["nd-pose.png"], ["nd-pa1.png"], ["nd-pa2.png"]] : []; }
 function preBoss(i) { const b = CBOSS[i]; if (!b || b.pre) return; b.pre = true; fxPre(bossFx(b.en)); }
 function noodleAttack(wrap, img) {
   requestAnimationFrame(() => {
@@ -1705,6 +1751,9 @@ function enemyEl() {
   } else if (G.state === "fb" && can && !G.played && G.en === 29) {
     G.played = true;
     fxGate(YW, () => bigAttack(wrap, img, YW, YO));
+  } else if (G.state === "fb" && can && !G.played && G.en === 40) {
+    G.played = true;
+    fxGate(PS, () => poseidonAttack(wrap, img));
   } else if (G.state === "fb" && can && !G.played && G.en === 39) {
     G.played = true;
     fxGate(PW, () => panelAttack(wrap, img));
@@ -1736,7 +1785,7 @@ function enemyEl() {
     if (G.en === 9) Bgm.sfx("thump");
     if (G.en === RARE_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "ラッキー! 激レア 看板ゾンビ!"); Bgm.sfx("chime"); burst(wrap, { colors: ["#ffd34d", "#ffffff", "#ffb84d"], n: 20, size: [14, 24], dist: [40, 120], dur: 1100, at: 0, shape: "star", up: true }); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2600); } });
     if (G.corrBanner) { G.corrBanner = false; requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "無限回廊 とつにゅう!"); Bgm.sfx("win"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2800); } }); }
-    if (G.en === 12 || G.en === 19 || G.en === 24 || isCbEn(G.en)) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, (G.en === 19 || G.en === 24) ? "ラスボスが あらわれた!" : "ボスが あらわれた!"); Bgm.sfx("boom"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } });
+    if (G.en === 12 || G.en === 19 || G.en === 24 || isCbEn(G.en)) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, (G.en === 19 || G.en === 24 || G.en === 40) ? "ラスボスが あらわれた!" : "ボスが あらわれた!"); Bgm.sfx("boom"); if (G.en === 40) { shakeEl(document.body, 12, 1100); flashScene(sc, "#9fe0ff", 500); } setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } });
     if (can) img.animate([
       { transform: "translate(0, -25%) scale(0.5)", opacity: 0 },
       { transform: "translate(0, 0) scale(1)", opacity: 1 }
@@ -1970,8 +2019,10 @@ function renderGame(root) {
     sc.appendChild(qt);
   }
   if (isBossEn(G.en) && !G.aed) { // ボスの体力(中級ボス3 / 裏ボス5 / ラスボス5)
-    const bb = el("div", "bossbar" + (G.bossMax > 6 ? " wide" : "")); bb.appendChild(el("span", null, "ボス"));
-    for (let i = 0; i < G.bossMax; i++) bb.appendChild(el("i", i < G.bossHp ? "" : "off"));
+    const big = G.bossMax > 12;
+    const bb = el("div", "bossbar" + (G.bossMax > 6 ? " wide" : "") + (big ? " gauge" : "")); bb.appendChild(el("span", null, G.en === 40 ? "ポセイドン" : "ボス"));
+    if (big) { const gb = el("div", "gbar"); const fi = document.createElement("i"); fi.style.width = Math.max(0, Math.min(100, G.bossHp / G.bossMax * 100)) + "%"; gb.appendChild(fi); bb.appendChild(gb); bb.appendChild(el("span", "gnum", G.bossHp + "/" + G.bossMax)); }
+    else for (let i = 0; i < G.bossMax; i++) bb.appendChild(el("i", i < G.bossHp ? "" : "off"));
     sc.appendChild(bb);
   }
   root.appendChild(sc);
@@ -2016,7 +2067,7 @@ function renderGame(root) {
   const slot = el("div", "nxslot"); UI.slot = slot;
   if (fbState && !talking) {
     const canAed = G.mode === "rate" && !G.aedDone && !G.aed; // 体力0でも、回復キャラが助けに来る
-    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
+    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.en === 40 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
     const nx = el("button", "btn", G.aed && G.lastOk ? (G.aed.i >= AEDQ.length - 1 ? "▶ 体力を回復する!" : "▶ つぎの蘇生問題へ") : finalQ ? "▶ 結果を見る" : "▶ つぎへ");
     nx.type = "button";
     nx.onclick = next;
@@ -2156,6 +2207,7 @@ function renderEnd(root) {
   const m = MODES[G.mode];
   const b = el("div", "box stack");
   b.appendChild(el("h2", "verdict " + (G.cleared ? "clear" : "over"), G.cleared ? m.name + "クリア!" : "ゲームオーバー"));
+  if (G.lostToPose) b.appendChild(el("p", "pawa", "「お前がオレに勝てる時なんて、オレが死ぬ1秒前に奇跡が起きた時だけだ」"));
   if (G.lostToNod) b.appendChild(el("p", "pawa", "「俺のパワハラは止まらんえぇ〜」"));
   if (G.mode === "rate" && runTier(G) > 0) {
     const t = runTier(G);
@@ -2266,7 +2318,7 @@ function pick(k) {
     if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
-    else { G.hp--; G.dmg = (G.dmg || 0) + 1; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
+    else { const dn = (G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : 1; G.hp -= dn; G.dmg = (G.dmg || 0) + dn; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
   } else if (!ok) G.hp--;
   render();
 }
@@ -2283,6 +2335,7 @@ function next() {
   const B = MODES[G.mode].boss;
   if (G.fixedEn != null && G.qi >= G.qs.length) extendQs(20);
   if (B && B.until && G.bossStarted && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ラスボスは、倒すまで問題が続く
+  if (G.cboss && G.en === 40 && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ポセイドンは、倒すまで問題が続く
   if (G.qi >= G.qs.length) { // レート戦のラスボスをたおしたら、まだ出ていない問題を、すべて出す「無限回廊」へ
     if (!(G.mode === "rate" && !G.corridor && enterCorridor())) { G.corrDone = !!G.corridor; endRun(true); return; }
   }
@@ -2308,13 +2361,13 @@ function next() {
   if (G.corridor && G.mode === "rate") { // 無限回廊のボス(ヌードルモンスター → 覚醒ヌードルモンスター)
     if (G.cboss && G.bossHp <= 0) { // ボスを倒したら、次のステージへ(背景がかわる)。次のボスは、そのステージの終わりのほうに出る
       G.cboss = false; G.cbDef = (G.cbDef || 0) + 1;
-      if (G.cbN < CBOSS.length) G.cbNext = G.qi + Math.max(1, Math.floor((G.qs.length - G.corrStart) / CORR_BG_N) - (CBOSS[G.cbN].span || 5));
+      if (G.cbN < CBOSS.length) G.cbNext = CBOSS[G.cbN].now ? G.qi : G.qi + Math.max(1, Math.floor((G.qs.length - G.corrStart) / CORR_BG_N) - (CBOSS[G.cbN].span || 5));
     }
-    if (!G.cboss && G.cbN < CBOSS.length && G.qi >= G.cbNext - 3) preBoss(G.cbN); // 次のボスの絵を、3問前から読み込む
+    if (G.cbN < CBOSS.length && (G.cboss || G.qi >= G.cbNext - 3)) preBoss(G.cbN); // 次のボスの絵を、3問前から読み込む
     if (G.cboss) { G.en = CBOSS[G.cbN - 1].en; G.appear = false; }
     else if (G.cbN < CBOSS.length && !G.nodPhase && G.en !== 10 && G.en !== 11 && G.qi >= G.cbNext) {
       const cb = CBOSS[G.cbN++];
-      G.cboss = true; G.bossHp = cb.hp; G.bossMax = cb.hp; G.en = cb.en; G.appear = true;
+      const hpn = cb.now ? Math.max(1, G.qs.length - G.qi) : cb.hp; G.cboss = true; G.bossHp = hpn; G.bossMax = hpn; G.en = cb.en; G.appear = true;
       G.talk = { lines: cb.lines(myName || "あなた"), i: 0, t0: Date.now() };
     }
   }
@@ -2419,9 +2472,11 @@ function finishTutorial() {
   render();
 }
 function endRun(cleared) {
+  const lostRaw = !cleared;
   if (G.snap) cleared = true; // 無限回廊の途中でたおれても、レート戦クリアは、そのまま
   G.state = "end"; G.cleared = cleared; G.aed = null;
   flushStats();
+  G.lostToPose = lostRaw && G.en === 40 && G.cboss;
   G.lostToNod = !cleared && G.en === 9; // ヌードルモンスターに負けたときだけ、あのセリフを出す
   if (cleared && G.mode === "chu") { prog.chu = true; saveProg(); }
   if (cleared && G.mode === "jo") { prog.jo = true; saveProg(); }
