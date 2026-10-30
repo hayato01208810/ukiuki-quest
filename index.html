@@ -1047,7 +1047,7 @@ function drawScene() {
   if (!c) return;
   const x = c.getContext("2d");
   x.imageSmoothingEnabled = false;
-  if (G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "review" || G.mode === "jo" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
+  if (view === "name" || G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "review" || G.mode === "jo" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
   else x.drawImage(bgFor(palIdx()), 0, 0);
   if (G && G.flash && G.state === "fb" && !G.lastOk) { x.fillStyle = "rgba(255,60,60,0.3)"; x.fillRect(0, 0, W, H); }
 }
@@ -1073,7 +1073,7 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
+  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
   if (G && G.mode === "rate" && G.corridor && (G.en !== 9 || G.cboss)) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
   else if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
