@@ -2018,7 +2018,7 @@ function renderGame(root) {
     };
     sc.appendChild(qt);
   }
-  if (isBossEn(G.en) && !G.aed) { // ボスの体力(中級ボス3 / 裏ボス5 / ラスボス5)
+  if (isBossEn(G.en) && !G.aed && G.en !== 40) { // ボスの体力(ポセイドンは、体力ゲージを出さない)(中級ボス3 / 裏ボス5 / ラスボス5)
     const big = G.bossMax > 12;
     const bb = el("div", "bossbar" + (G.bossMax > 6 ? " wide" : "") + (big ? " gauge" : "")); bb.appendChild(el("span", null, G.en === 40 ? "ポセイドン" : "ボス"));
     if (big) { const gb = el("div", "gbar"); const fi = document.createElement("i"); fi.style.width = Math.max(0, Math.min(100, G.bossHp / G.bossMax * 100)) + "%"; gb.appendChild(fi); bb.appendChild(gb); bb.appendChild(el("span", "gnum", G.bossHp + "/" + G.bossMax)); }
@@ -2067,7 +2067,7 @@ function renderGame(root) {
   const slot = el("div", "nxslot"); UI.slot = slot;
   if (fbState && !talking) {
     const canAed = G.mode === "rate" && !G.aedDone && !G.aed; // 体力0でも、回復キャラが助けに来る
-    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.en === 40 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
+    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
     const nx = el("button", "btn", G.aed && G.lastOk ? (G.aed.i >= AEDQ.length - 1 ? "▶ 体力を回復する!" : "▶ つぎの蘇生問題へ") : finalQ ? "▶ 結果を見る" : "▶ つぎへ");
     nx.type = "button";
     nx.onclick = next;
@@ -2318,7 +2318,7 @@ function pick(k) {
     if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
-    else { const dn = (G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : 1; G.hp -= dn; G.dmg = (G.dmg || 0) + dn; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
+    else { if (G.en === 40 && G.cboss && G.bossHp > 0) G.bossHp--; /* ポセイドンは、正解でも不正解でも、残り問題が1つ減る */ const dn = (G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : 1; G.hp -= dn; G.dmg = (G.dmg || 0) + dn; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
   } else if (!ok) G.hp--;
   render();
 }
@@ -2335,7 +2335,6 @@ function next() {
   const B = MODES[G.mode].boss;
   if (G.fixedEn != null && G.qi >= G.qs.length) extendQs(20);
   if (B && B.until && G.bossStarted && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ラスボスは、倒すまで問題が続く
-  if (G.cboss && G.en === 40 && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ポセイドンは、倒すまで問題が続く
   if (G.qi >= G.qs.length) { // レート戦のラスボスをたおしたら、まだ出ていない問題を、すべて出す「無限回廊」へ
     if (!(G.mode === "rate" && !G.corridor && enterCorridor())) { G.corrDone = !!G.corridor; endRun(true); return; }
   }
