@@ -409,7 +409,7 @@ html.playing #play { flex: 1 1 auto; min-height: 0; gap: 8px; }
 const HP_MAX = 5;
 const RATE_HP = 3; // レート戦のはじめの体力
 function maxHp(mode) { return mode === "rate" ? RATE_HP : HP_MAX; }
-const RATE_PER_CORRECT = 100; // レート戦で、1問正解ごとに上がるレート
+const RATE_PER_CORRECT = 110; // レート戦で、1問正解ごとに上がるレート
 // 入場の合言葉(SHA-256)。ページを開けた人は中身を読めるので、簡易の入口です。
 const PW_HASH = "425e046ba71f4ae2f74835d829b3eab8c5315956c95209c78924f2558c3a49a2";
 
@@ -840,7 +840,7 @@ function hasLogo(r) { return !!(r && (r.logo || (NEW_TITLES && r.titleTier === 2
 function logoEl() { const im = document.createElement("img"); im.src = "logo-m.png"; im.alt = ""; im.className = "logo-m"; im.draggable = false; return im; }
 function myTier() { const me = uid ? rows.find((r) => r.id === uid) : null; return Math.max(tierOf(me), localTier); }
 let localTier = 0;
-function ratingOf(r) { return r.rating != null ? r.rating : (r.best || 0) * RATE_PER_CORRECT; } // 1回の挑戦での最高(正解数 × 100 + 無限回廊ボーナス)
+function ratingOf(r) { return r.rating != null ? r.rating : (r.best || 0) * RATE_PER_CORRECT; } // 1回の挑戦での最高(正解数 × 110 + 無限回廊ボーナス)
 const CORR_BONUS = [2000, 1500, 1000, 500]; // 無限回廊を最後までクリアしたときのボーナス。受けたダメージが0,1,2,3のとき(4以上はなし)
 function corrBonus(g) { return (g && g.corrDone && !g.test) ? (CORR_BONUS[g.dmg || 0] || 0) : 0; }
 function updateMyRate() {
@@ -1995,7 +1995,7 @@ function renderIntro(root) {
     "HPは5つ。不正解になるとHPが1つ減ります。",
     "HPの回復はありません。0になるとそこで終了です。",
     "全問を抜ければクリア。中級、上級、レート戦の順に解放されます。",
-    "レート戦では、正解1問ごとに100レート。1回の挑戦での最高レートでランキングを競います。"
+    "レート戦では、正解1問ごとに110レート。1回の挑戦での最高レートでランキングを競います。"
   ].forEach((t) => ul.appendChild(el("li", null, t)));
   b.appendChild(ul);
   b.appendChild(el("p", "note", "ここでは練習です。HPが減っても記録には残りません。"));
