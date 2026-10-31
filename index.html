@@ -2340,7 +2340,7 @@ function pick(k) {
     if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
-    else { if (G.en === 40 && G.cboss && G.bossHp > 0) G.bossHp--; /* ポセイドンは、正解でも不正解でも、残り問題が1つ減る */ const dn = (G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : (G.en === 9 && !G.cboss) ? 2 : 1; /* 裏ボスのヌードルは攻撃力2(AEDで体力2に戻っても、間違えたら倒れる) */ G.hp -= dn; G.dmg = (G.dmg || 0) + dn; G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
+    else { if (G.en === 40 && G.cboss && G.bossHp > 0) G.bossHp--; /* ポセイドンは、正解でも不正解でも、残り問題が1つ減る */ const dn = (G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : (G.en === 9 && !G.cboss) ? 2 : 1; /* 裏ボスのヌードルは攻撃力2(AEDで体力2に戻っても、間違えたら倒れる) */ G.hp = Math.max(0, G.hp - dn); G.dmg = (G.dmg || 0) + dn; /* 体力は0より下にしない(AEDで回復するとき、マイナスから数えないように) */ G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
   } else if (!ok) G.hp--;
   render();
 }
