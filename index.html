@@ -62,6 +62,11 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .scene.jobg .enemy-wrap { bottom: 6%; } /* 上級: ロッカー室の通路に立たせる */
 .scene.rbg { background: var(--box) center bottom / cover no-repeat; }
 .scene.rbg .enemy-wrap { bottom: 10%; }
+.tmr { position: absolute; top: 0; left: 0; right: 0; height: 18px; z-index: 6; background: rgba(5,8,20,0.7); line-height: 18px; font-size: 0.72rem; text-align: center; color: #fff; pointer-events: none; }
+.tmr .tb { position: absolute; inset: 0; }
+.tmr .tb i { display: block; height: 100%; width: 100%; background: rgba(111,220,140,0.75); }
+.tmr span { position: relative; text-shadow: 0 1px 2px #000; }
+.tmr.warn .tb i { background: rgba(255,70,70,0.8); }
 .scene.nbg { background: var(--box) url("noodle-bg.jpg") center bottom / cover no-repeat; }
 .scene.nbg .enemy-wrap { bottom: 9%; }
 .pawa { text-align: center; color: #ffd34d; font-weight: bold; margin: 2px 0; }
@@ -73,6 +78,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .ov { position: absolute; z-index: 2; pointer-events: none; line-height: 1.4; font-size: 0.82rem; padding: 3px 8px; border-width: 2px; max-width: 46%; }
 .ov.tl { top: 6px; left: 6px; }
 .ov.tr { top: 6px; right: 6px; }
+.scene.rt .ov.tl, .scene.rt .ov.tr { top: 24px; } /* レート戦は、いちばん上に制限時間の帯を出す */
 .ov.bl { bottom: 6px; left: 6px; padding: 6px 10px; pointer-events: auto; cursor: pointer; font: inherit; font-size: 0.82rem; color: var(--ink); background: var(--box); }
 .ov.bl.ask { border-color: var(--ng, #ff6b6b); }
 .ov.br { bottom: 6px; right: 6px; display: flex; align-items: center; gap: 6px; }
@@ -1075,7 +1081,7 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
+  const wrap = el("div", "scene" + (G && G.mode === "rate" && !G.test ? " rt" : "") + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
   if (G && G.mode === "rate" && G.corridor && (G.en !== 9 || G.cboss)) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
   else if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
@@ -2031,6 +2037,7 @@ function renderGame(root) {
   for (let i = 0; i < maxHp(G.mode); i++) hs.appendChild(heart(i < G.hp));
   br.appendChild(hs);
   sc.append(tl, tr, br);
+  if (timedNow()) sc.appendChild(makeTimerBar()); // 制限時間(レート戦)
   if (!G.talk) { // 途中でやめて、タイトルに戻る(1回目で確認、2回目で戻る)
     const qt = el("button", "box ov bl" + (G.quitAsk ? " ask" : ""), G.quitAsk ? "本当にやめる?" : "◀ やめる");
     qt.type = "button";
@@ -2057,7 +2064,7 @@ function renderGame(root) {
     qb.appendChild(el("div", "tapnext", "▼ タップでつぎへ"));
     qb.onclick = talkAdvance; UI.saved = null;
   } else if (fbState) {
-    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : "不正解… HPが1つ減った"));
+    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : G.timeout ? "時間切れ… HPが減った" : "不正解… HPが1つ減った"));
     if (q.e) qb.appendChild(el("div", "exp", q.e));
   } else {
     if (G.aed) qb.appendChild(el("div", "qno", "蘇生問題 — 3問正解で体力が" + AED_HEAL + "回復"));
@@ -2128,6 +2135,33 @@ function talkAdvance() {
     if (UI.list) UI.list.style.visibility = ""; if (UI.slot) UI.slot.style.visibility = "";
   } else render();
 }
+// ---- 制限時間(レート戦のみ。1問30秒。時間切れは不正解と同じ) ----
+const TIME_LIMIT = 30;
+function timedNow() { return !!(G && G.mode === "rate" && G.state === "ask" && G.opts && !G.aed && !G.talk && !G.test); }
+function tmKey() { return G.qi + "/" + (G.ms || 0) + "/" + G.qs.length; }
+function makeTimerBar() {
+  const k = tmKey();
+  if (!G.tm || G.tm.key !== k) G.tm = { key: k, left: TIME_LIMIT * 1000 };
+  const d = el("div", "tmr"), sp = el("span", null, ""), tb = el("div", "tb"), fi = document.createElement("i");
+  tb.appendChild(fi); d.append(tb, sp); UI.tm = { d: d, sp: sp, fi: fi };
+  tmPaint();
+  return d;
+}
+function tmPaint() {
+  if (!UI.tm || !G || !G.tm) return;
+  const sec = Math.max(0, Math.ceil(G.tm.left / 1000));
+  UI.tm.sp.textContent = "残り" + sec + "秒";
+  UI.tm.fi.style.width = Math.max(0, Math.min(100, G.tm.left / (TIME_LIMIT * 1000) * 100)) + "%";
+  UI.tm.d.classList.toggle("warn", sec <= 5);
+}
+let tmLast = Date.now();
+setInterval(() => {
+  const now = Date.now(), dt = Math.min(300, now - tmLast); tmLast = now;
+  if (document.hidden || !timedNow() || !G.tm || G.tm.key !== tmKey() || !UI.tm || !UI.tm.d.isConnected) return;
+  G.tm.left -= dt;
+  tmPaint();
+  if (G.tm.left <= 0 && !G.lock) { G.tm.left = 0; pick(-1); }
+}, 100);
 function talkStart(lines) {
   G.talk = { lines: lines, i: 0, t0: Date.now() };
   if (!UI.qb || !UI.qb.isConnected) { render(); return; }
@@ -2323,13 +2357,13 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 window.addEventListener("pagehide", flushStats);
 function pick(k) {
   if (G.lock || G.talk) return;
-  const ok = G.opts[k].ok;
+  const ok = k >= 0 && G.opts[k].ok; // k=-1は時間切れ(不正解あつかい)
   const mq = (!G.aed && G.mode !== "tutorial") ? G.qs[G.qi] : null;
   if (mq && mq.multi && ok && (G.ms || 0) < mq.multi.length - 1) { // 最終問題: A正解でB、B正解でCへ(まだ数えない)
     G.ms = (G.ms || 0) + 1; G.opts = null; G.picked = -1; G.state = "ask"; G.appear = false; render(); return;
   }
   if (G.aed) { G.picked = k; G.lastOk = ok; G.state = "fb"; G.played = false; G.flash = false; render(); return; } // 蘇生問題は、成績に数えない
-  G.picked = k; G.lastOk = ok; G.state = "fb"; G.played = false; G.flash = false;
+  G.picked = k; G.lastOk = ok; G.timeout = k < 0; G.state = "fb"; G.played = false; G.flash = false;
   if (!ok) {
     const g = G;
     setTimeout(() => { if (G === g && g.state === "fb") { g.flash = true; drawScene(); } }, 380); // 飛びかかりが当たる瞬間に赤くする
