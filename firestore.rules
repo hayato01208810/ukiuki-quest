@@ -33,7 +33,7 @@ service cloud.firestore {
         && okNum(request.resource.data, 'best', 5000)
         && okNum(request.resource.data, 'bestStreak', 5000)
         && okNum(request.resource.data, 'rating', 200000)
-        && okNum(request.resource.data, 'titleTier', 40)
+        && okNum(request.resource.data, 'titleTier', 60)
         && (!('rate' in request.resource.data) || (request.resource.data.rate is number && request.resource.data.rate >= 0 && request.resource.data.rate <= 1))
         && (resource == null
             || (request.resource.data.get('rating', 0) >= resource.data.get('rating', 0)

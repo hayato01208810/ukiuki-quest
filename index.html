@@ -3080,6 +3080,7 @@ async function saveRun(run) {
       best: best,
       titleTier: tier ? tier + TIER_OFF : 0,
       logo: hasLogo(prev) || !!prev.logo,
+      resetMsg: (prev.resetMsg === 1 || (NEW_TITLES && prev.titleTier >= 21 && prev.titleTier <= 25)) ? 1 : 0, // お知らせを見る前に遊んでも、お知らせを出す
       bestStreak: Math.max(prev.bestStreak || 0, run.maxStreak),
       rate: answered ? correct / answered : 0,
       rating: rating,
@@ -3100,9 +3101,10 @@ let resetShown = false;
 function checkTitleReset() {
   if (resetShown || !NEW_TITLES || !db || !uid || !canSave()) return;
   const me = rows.find((r) => r.id === uid);
-  if (!me || !(me.titleTier >= 21 && me.titleTier <= 25)) return; // 旧称号(21〜25)を持っていた人だけ
+  const oldT = !!(me && me.titleTier >= 21 && me.titleTier <= 25);
+  if (!me || !(oldT || me.resetMsg === 1)) return; // 旧称号(21〜25)を持っていた人だけ(お知らせの前に遊んで、新しい称号に書きかわった人も)
   resetShown = true;
-  const top = me.titleTier === 25;
+  const top = hasLogo(me);
   const ov = document.createElement("div"); ov.className = "reset-ov";
   const bx = document.createElement("div"); bx.className = "reset-box";
   const p1 = document.createElement("p"); p1.textContent = "テストプレイお疲れ様でした!\n称号の取得条件を、より難しく変更しました。これまでの称号はリセットとなります。\n再び称号の獲得を目指して、頑張ってください💪"; bx.appendChild(p1);
@@ -3113,7 +3115,7 @@ function checkTitleReset() {
   const ok = el("button", "btn", "OK"); ok.type = "button";
   ok.onclick = () => {
     ok.disabled = true;
-    const upd = top ? { titleTier: 0, logo: true } : { titleTier: 0 };
+    const upd = oldT ? (top ? { titleTier: 0, logo: true, resetMsg: 0 } : { titleTier: 0, resetMsg: 0 }) : { resetMsg: 0 }; // 新しい称号を取っていたら、それは消さない
     db.doc("results/" + uid).update(upd).then(() => ov.remove()).catch(() => { ov.remove(); resetShown = false; }); // 書けなかったときは、次に開いたとき、もう一度出る
   };
   bx.appendChild(ok); ov.appendChild(bx); document.body.appendChild(ov);
