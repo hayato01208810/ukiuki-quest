@@ -834,7 +834,7 @@ function runTier(run) {
   if (reached >= 25) return 1;
   return 0;
 }
-function tierOf(r) { const v = (r && r.titleTier) || 0; return v >= TIER_OFF ? v - TIER_OFF : 0; }
+function tierOf(r) { const v = (r && r.titleTier) || 0, t = v >= TIER_OFF ? v - TIER_OFF : 0; return (NEW_TITLES && hasLogo(r)) ? Math.max(1, t) : t; } // テストプレイ期間の「世界一」(ロゴを持つ人)には、引き継ぎで「見習い」を贈る
 // テストプレイ期間中の「世界一すんごいライフガード」(旧)に贈る、記念ロゴ
 function hasLogo(r) { return !!(r && (r.logo || (NEW_TITLES && r.titleTier === 25))); }
 function logoEl() { const im = document.createElement("img"); im.src = "logo-m.png"; im.alt = ""; im.className = "logo-m"; im.draggable = false; return im; }
@@ -3109,7 +3109,7 @@ function checkTitleReset() {
   const bx = document.createElement("div"); bx.className = "reset-box";
   const p1 = document.createElement("p"); p1.textContent = "テストプレイお疲れ様でした!\n称号の取得条件を、より難しく変更しました。これまでの称号はリセットとなります。\n再び称号の獲得を目指して、頑張ってください💪"; bx.appendChild(p1);
   if (top) {
-    const p2 = document.createElement("p"); p2.textContent = "なお、テストプレイ期間中に「世界一すんごいライフガード」になった皆さんには、記念として、このロゴを名前の隣にプレゼントします。"; bx.appendChild(p2);
+    const p2 = document.createElement("p"); p2.textContent = "なお、テストプレイ期間中に「世界一すんごいライフガード」になった皆さんには、記念として、このロゴを名前の隣にプレゼントします。あわせて、引き継ぎとして「見習いライフガード」の称号を贈ります。"; bx.appendChild(p2);
     const im = logoEl(); im.className = "reset-logo"; bx.appendChild(im);
   }
   const ok = el("button", "btn", "OK"); ok.type = "button";
