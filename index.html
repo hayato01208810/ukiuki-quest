@@ -2061,6 +2061,7 @@ function renderGame(root) {
   root.appendChild(sc);
 
   // 問題。答えたあとは、同じ場所が結果と解説に変わる(高さが変わらないので、演出が見やすい)
+  { const qk = G.qi + "/" + (G.ms || 0) + "/" + (G.aed ? "a" : ""); if (G.qk !== qk) { G.qk = qk; G.qT0 = Date.now(); } }
   const talking = !!G.talk;
   const qb = el("div", "box qbox" + (q.id === "joFinal" ? " long" : "") + (talking ? " talk" : fbState ? (G.lastOk ? " ok" : " ng") : ""));
   if (talking) {
@@ -2134,6 +2135,7 @@ function talkAdvance() {
   if (t.i < t.lines.length) { const p = UI.qb && UI.qb.querySelector("p.q"); if (p) p.textContent = t.lines[t.i]; return; }
   const after = t.after; G.talk = null;
   if (after) { after(); return; }
+  G.qT0 = Date.now(); // セリフが終わってから、解答時間を数える
   if (UI.saved && UI.qb && UI.qb.isConnected) { // 元の表示に戻す
     UI.qb.className = UI.cls; UI.qb.onclick = null; UI.qb.replaceChildren(...UI.saved); UI.saved = null;
     if (UI.list) UI.list.style.visibility = ""; if (UI.slot) UI.slot.style.visibility = "";
@@ -2292,7 +2294,7 @@ function renderEnd(root) {
   add("最大の連続正解", G.maxStreak + "問");
   if (G.snap) add("無限回廊", (G.answered - G.snap.answered) + "問に挑戦 / " + (G.correct - G.snap.correct) + "問 正解" + (G.corrDone ? "(全問せいは!)" : ""));
   add("答えた問題", G.answered + " / " + G.qs.length);
-  add("のこりHP", Math.max(0, G.hp) + " / " + maxHp(G.mode));
+  add("平均解答時間", G.tN ? (G.tSum / G.tN / 1000).toFixed(1) + "秒" : "-");
   b.appendChild(dl);
   if (G.cleared && m.next) b.appendChild(el("p", "ok-msg", "「" + MODES[m.next].name + "」が解放されました!"));
   let text = "";
@@ -2367,6 +2369,7 @@ function pick(k) {
     G.ms = (G.ms || 0) + 1; G.opts = null; G.picked = -1; G.state = "ask"; G.appear = false; render(); return;
   }
   if (G.aed) { G.picked = k; G.lastOk = ok; G.state = "fb"; G.played = false; G.flash = false; render(); return; } // 蘇生問題は、成績に数えない
+  { const nw = Date.now(); const ms = (G.mode === "rate" && G.tm && G.tm.key === tmKey()) ? (TIME_LIMIT * 1000 - G.tm.left) : Math.min(60000, nw - (G.qT0 || nw)); G.tSum = (G.tSum || 0) + Math.max(0, ms); G.tN = (G.tN || 0) + 1; } // 平均解答時間(蘇生問題は数えない)
   G.picked = k; G.lastOk = ok; G.timeout = k < 0; G.state = "fb"; G.played = false; G.flash = false;
   if (!ok) {
     const g = G;
