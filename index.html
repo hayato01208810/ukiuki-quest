@@ -112,6 +112,7 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i39 { --gc: rgba(190, 70, 255, .85); animation: idle-float 1.8s ease-in-out infinite, glowpulse 1.4s ease-in-out infinite; } /* 回廊ボス: 白骨ヌードル */
 .enemy-wrap.i37 { animation: idle-float 1.4s ease-in-out infinite; }
 .enemy-wrap.i38 { animation: idle-squash 1.2s ease-in-out infinite; }
+.enemy-wrap.i42 { animation: idle-wobble 1.6s ease-in-out infinite; }
 .enemy-wrap.i41 { --gc: rgba(255, 215, 80, .9); animation: idle-float 1.3s ease-in-out infinite, glowpulse 1s ease-in-out infinite; }
 .enemy-wrap.i40 { --gc: rgba(80, 190, 255, .9); animation: idle-float 2.2s ease-in-out infinite, glowpulse 1.1s ease-in-out infinite; }
 .enemy-wrap.i25 { animation: idle-stomp 1.4s ease-in infinite; }
@@ -498,13 +499,16 @@ const ENEMIES = [
   { src: "enemy31.png", h: 48, ar: 1.107, alt: "茶色いトゲトゲの敵" },
   { src: "nd-awaken5.png", h: 68, ar: 1.454, alt: "白骨ヌードルモンスター", tag: "回廊ボス", where: "【ボス】無限回廊の6つめのステージの最後。体力10(10回正解で撃破)。地獄の底で苦しみつづける、ヌードルモンスターの成れの果て。" },
   { src: "nd-pose.png", h: 72, ar: 1.482, alt: "ポセイドン", tag: "最終ボス", where: "【最終ボス】無限回廊の最終階層に入ると、すぐに現れる。体力は、そのときの残り問題数ぶん(全問正解で撃破)。攻撃力は通常の1.5倍。無限回廊の頂点に立つ、水底の王。" },
-  { src: "enemy32.png", h: 62, ar: 1.258, alt: "ヌードルライダーFT", tag: "超激レア", where: "【超激レア】どの挑戦でも、とてもまれに現れる(約1000問に1回)。1回の挑戦で出るのは1回まで。出会えたら、かなりのラッキー!" }
+  { src: "enemy32.png", h: 62, ar: 1.258, alt: "ヌードルライダーFT", tag: "超激レア", where: "【超激レア】どの挑戦でも、とてもまれに現れる(約1000問に1回)。1回の挑戦で出るのは1回まで。出会えたら、かなりのラッキー!" },
+  { src: "enemy33.png", h: 60, ar: 0.974, alt: "車いすを押すゾンビとガイコツ", tag: "レア", where: "【レア】どの挑戦でも、ときどき現れる(約80問に1回)。1回の挑戦で出るのは1回まで。" }
 ]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
 function enemyIdx(mode) {
   const m = MODES[mode];
   if (!m) return 0; // チュートリアル
   return m.enemies[Math.floor(Math.random() * m.enemies.length)];
 }
+const RARE3_EN = 42, RARE3_P = 0.012; // 少しレアな敵(車いすを押すゾンビとガイコツ): 約80問に1回。1回の挑戦で1回まで
+const RARE3_FX = { colors: ["#9be37a", "#ffffff", "#c08cff", "#ffd34d"], n: 22, size: [6, 13], dist: [50, 130], dur: 800, at: 350, shape: "square" };
 const RARE2_EN = 41, RARE2_P = 0.001; // 超激レアの敵(ヌードルライダーFT): 約1000問に1回。激レアと合わせて、1回の挑戦で1回まで
 const RARE2_FX = { colors: ["#ffd34d", "#ffffff", "#2f9bf0", "#ff3b30"], n: 34, size: [6, 14], dist: [60, 170], dur: 900, at: 300, shape: "star", up: true };
 const RARE_EN = 20, RARE_P = 0.004; // 激レアの敵(看板ゾンビ): 1問ごとにこの確率で出る(約250問に1回)。1回の挑戦で1回まで
@@ -1770,10 +1774,10 @@ function enemyEl() {
     if (!G.played && can) {
       G.played = true;
       img.style.opacity = "";
-      const R = REPEL[G.en || 0] || (isCbEn(G.en) || G.en === RARE2_EN ? REPEL[19] : null) || REPEL[0];
+      const R = REPEL[G.en || 0] || (isCbEn(G.en) || G.en === RARE2_EN || G.en === RARE3_EN ? REPEL[19] : null) || REPEL[0];
       if (R.origin) img.style.transformOrigin = R.origin;
       img.animate(R.frames, { duration: R.dur, easing: R.ease, fill: "forwards" });
-      burst(wrap, FX[G.en || 0] || (isCbEn(G.en) ? FX[19] : null) || (G.en === RARE2_EN ? RARE2_FX : null));
+      burst(wrap, FX[G.en || 0] || (isCbEn(G.en) ? FX[19] : null) || (G.en === RARE2_EN ? RARE2_FX : G.en === RARE3_EN ? RARE3_FX : null));
       if (G.en === 10) { const g = G; setTimeout(() => { if (G === g && g.state === "fb" && g.lastOk && !g.talk) { Bgm.sfx("pop"); talkStart(["くっ、、次出勤した時覚えてろ。プール落としてやる、、、!"]); } }, 900); }
       if (G.cboss && G.bossHp <= 0 && G.cbN > 0 && CBOSS[G.cbN - 1].after) { const g = G, ln = CBOSS[G.cbN - 1].after(myName || "あなた"); setTimeout(() => { if (G === g && g.state === "fb" && g.lastOk && !g.talk) { Bgm.sfx("pop"); talkStart(ln); } }, 1000); } // 倒したあと、高みで待つ、というセリフ
       if (G.en === RARE2_EN) setTimeout(() => { const sc = wrap.parentElement; if (wrap.isConnected && sc) { evBanner(sc, "超ラッキー! ヌードルライダーFTを たおした!"); Bgm.sfx("win"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2200); } }, 900);
@@ -1820,6 +1824,7 @@ function enemyEl() {
     G.appear = false;
     if (G.en === 10 && can) ojiEntrance(wrap);
     if (G.en === 9) Bgm.sfx("thump");
+    if (G.en === RARE3_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "レア! ゾンビとガイコツが あらわれた!"); Bgm.sfx("chime"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2400); } });
     if (G.en === RARE2_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "超ラッキー! 超激レア ヌードルライダーFT!"); Bgm.sfx("chime"); burst(wrap, RARE2_FX); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 3000); } });
     if (G.en === RARE_EN) requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "ラッキー! 激レア 看板ゾンビ!"); Bgm.sfx("chime"); burst(wrap, { colors: ["#ffd34d", "#ffffff", "#ffb84d"], n: 20, size: [14, 24], dist: [40, 120], dur: 1100, at: 0, shape: "star", up: true }); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2600); } });
     if (G.corrBanner) { G.corrBanner = false; requestAnimationFrame(() => { const sc = wrap.parentElement; if (sc) { evBanner(sc, "無限回廊 とつにゅう!"); Bgm.sfx("win"); setTimeout(() => { if (wrap.isConnected) evBanner(sc, ""); }, 2800); } }); }
@@ -2038,7 +2043,7 @@ function renderGame(root) {
   if (tut) { tl.appendChild(el("div", null, "チュートリアル")); tl.appendChild(el("div", null, "練習 " + (G.qi + 1) + " / " + TUT.length)); }
   else if (G.aed) { tl.appendChild(el("div", null, "蘇生チャレンジ")); tl.appendChild(el("div", null, "もんだい " + (G.aed.i + 1) + " / " + AEDQ.length)); }
   else if (G.corridor) { tl.appendChild(el("div", null, "無限回廊")); tl.appendChild(el("div", null, (G.qi - G.corrStart + 1) + "問目 / 全" + (G.qs.length - G.corrStart) + "問")); }
-  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE2_EN) tl.appendChild(el("div", "tagst", "超激レア!")); else if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9 || G.cboss) tl.appendChild(el("div", "tagst", G.cboss ? "回廊のボス!" : "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
+  else { tl.appendChild(el("div", null, MODES[G.mode].name)); tl.appendChild(el("div", null, "第" + (G.qi + 1) + "問 / " + G.qs.length + "問")); if (G.en === RARE3_EN) tl.appendChild(el("div", "tagst", "レア!")); else if (G.en === RARE2_EN) tl.appendChild(el("div", "tagst", "超激レア!")); else if (G.en === RARE_EN) tl.appendChild(el("div", "tagst", "激レア!")); else if (G.en === 19 || G.en === 24) tl.appendChild(el("div", "tagst", "ラスボス戦!")); else if (G.en === 9 || G.cboss) tl.appendChild(el("div", "tagst", G.cboss ? "回廊のボス!" : "裏ボス出現!")); else if (G.en === 10) tl.appendChild(el("div", "tagst", "おじさんと勝負!")); else if (G.en === 11) tl.appendChild(el("div", "tagst", "おじさんの手下")); }
   const tr = el("div", "box ov tr");
   { const nmd = el("div", "nm" + (myTier() === TOP_TIER ? " rainbow" : ""), myName || "あなた"); const me0 = uid ? rows.find((r) => r.id === uid) : null; if (hasLogo(me0)) nmd.appendChild(logoEl()); tr.appendChild(nmd); }
   const br = el("div", "box ov br");
@@ -2341,7 +2346,7 @@ function startMode(mode) {
   if (mode === "review" && !reviewList().length) return;
   G = { mode: mode, qs: buildRunQuestions(mode), en: enemyIdx(mode), appear: true, played: false, flash: false, state: "ask", qi: 0, hp: maxHp(mode), aed: null, aedDone: false, answered: 0, correct: 0, streak: 0, maxStreak: 0, opts: null, picked: -1, lastOk: false, cleared: false, save: "", lock: false, evAt: -1, bossHp: 0, bossMax: 3, bossStarted: false, rareDone: false, nodCorrect: 0, nodAnswered: 0, kills: 0, bgi: 0, bgNew: false, nodDone: false, nodPhase: false, evDone: false };
   // イベント戦(おじさん→エビサンダル→おじさん)を、上級とレート戦の途中の連続2問に入れる
-  { const r = Math.random(); if (r < RARE2_P) { G.en = RARE2_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P) { G.en = RARE_EN; G.rareDone = true; } }
+  { const r = Math.random(); if (r < RARE2_P) { G.en = RARE2_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P) { G.en = RARE_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P + RARE3_P) { G.en = RARE3_EN; G.rareDone = true; } }
   if (mode === "rate") G.evAt = 2 + Math.floor(Math.random() * (MODES[mode].len - MODES[mode].boss.hp - 6)); // ラスボス戦に入る前に収まる位置
   if (mode === "rate") preloadAed();
   view = "home";
@@ -2411,7 +2416,7 @@ function next() {
   G.en = enemyIdx(G.mode); G.appear = true; G.played = false; G.flash = false;
   if (!G.corridor && G.mode === "rate") { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
   if (!G.evDone && G.qi === G.evAt) G.en = 11; else if (!G.evDone && G.qi === G.evAt + 1) { G.en = 10; G.evDone = true; } // おじさんは、1回の挑戦で1回だけ
-  if (!G.rareDone && G.en !== 10 && G.en !== 11) { const r = Math.random(); if (r < RARE2_P) G.en = RARE2_EN; else if (r < RARE2_P + RARE_P) G.en = RARE_EN; } // 激レア(ボス・裏ボス・おじさんの場面では、あとで上書きされて出ない)
+  if (!G.rareDone && G.en !== 10 && G.en !== 11) { const r = Math.random(); if (r < RARE2_P) G.en = RARE2_EN; else if (r < RARE2_P + RARE_P) G.en = RARE_EN; else if (r < RARE2_P + RARE_P + RARE3_P) G.en = RARE3_EN; } // 激レア(ボス・裏ボス・おじさんの場面では、あとで上書きされて出ない)
   const bossZone = () => !!B && !G.corridor && (G.bossStarted || G.qi >= G.qs.length - B.hp);
   if (G.mode === "rate") { // 裏ボス(ヌードルモンスター): 自分の体力が1になったとき、ラスボス戦の前に1回だけ現れる。体力5(5回正解で撃破)
     if (G.nodPhase && G.bossHp <= 0) G.nodPhase = false;
@@ -2450,7 +2455,7 @@ function next() {
     if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
   }
   if (G.fixedEn != null) { G.en = G.fixedEn; G.appear = false; if (isBossEn(G.en) && G.bossHp <= 0) G.bossHp = G.bossMax; } // 図鑑のテスト対戦
-  if (G.en === RARE_EN || G.en === RARE2_EN) G.rareDone = true;
+  if (G.en === RARE_EN || G.en === RARE2_EN || G.en === RARE3_EN) G.rareDone = true;
   if (G.en === 9 && !G.cboss) useNodQ(); // 無限回廊のボスは、ふつうの問題
   if (G.corrIntro) { // 無限回廊への突入
     G.corrIntro = false; G.corrBanner = true; G.appear = true;
