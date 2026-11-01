@@ -67,6 +67,10 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .tmr .tb i { display: block; height: 100%; width: 100%; background: rgba(111,220,140,0.75); }
 .tmr span { position: relative; text-shadow: 0 1px 2px #000; }
 .tmr.warn .tb i { background: rgba(255,70,70,0.8); }
+.pctbox { margin: 8px 0 4px; text-align: center; }
+.pctbox svg { width: 100%; max-width: 360px; height: auto; display: block; margin: 0 auto; }
+.pctbox .pctx { font-size: 0.9rem; margin-top: 4px; line-height: 1.5; }
+.pctbox .pctx b { color: #ffe14d; font-weight: normal; }
 .scene.nbg { background: var(--box) url("noodle-bg.jpg") center bottom / cover no-repeat; }
 .scene.nbg .enemy-wrap { bottom: 9%; }
 .pawa { text-align: center; color: #ffd34d; font-weight: bold; margin: 2px 0; }
@@ -2276,6 +2280,39 @@ function playEndroll(slides, done) {
   ov.onclick = (e) => { if (e.target === skip) { finish(); return; } if (cur) cur.next(); else adv(); };
   fxGate(sl.slice(0, 2).flatMap((x) => [x.img, x.bg, x.chara].concat(x.photos ? x.photos.slice(0, 2) : []).filter(Boolean)), adv);
 }
+// ---- 今回の記録は、ランキングの上位何%か(ピラミッドの図) ----
+const PCT_EDGE = [0, 1, 10, 20, 30, 40, 50, 75, 100], PCT_Y = [0, 0.05, 0.17, 0.28, 0.39, 0.5, 0.62, 0.8, 1], PCT_COL = ["#c6d2da", "#d99066", "#e8604a", "#e8b94a", "#9ccc3c", "#7ccf6a", "#5fb86a", "#76a8b0"];
+function percentBox() {
+  if (!G || G.mode !== "rate" || G.test || !uid || !Array.isArray(rows)) return null;
+  const run = (G.correct - (G.nodCorrect || 0)) * RATE_PER_CORRECT + corrBonus(G);
+  const others = rows.filter((r) => r.id !== uid && typeof r.rate === "number" && r.answered > 0);
+  const n = others.length + 1;
+  if (n < 2) return null; // ほかに誰もいないときは、出さない
+  const rank = others.filter((r) => ratingOf(r) > run).length + 1;
+  const pct = Math.max(0.1, rank / n * 100);
+  const NS = "http://www.w3.org/2000/svg", mk = (t, at, p) => { const e = document.createElementNS(NS, t); Object.keys(at || {}).forEach((k) => e.setAttribute(k, at[k])); if (p) p.appendChild(e); return e; };
+  const W = 340, H = 232, ax = 150, top = 10, bot = 206, half = 116;
+  const yAt = (f) => top + (bot - top) * f, hw = (y) => half * (y - top) / (bot - top);
+  const f = (() => { for (let i = 1; i < PCT_EDGE.length; i++) if (pct <= PCT_EDGE[i]) return PCT_Y[i - 1] + (PCT_Y[i] - PCT_Y[i - 1]) * (pct - PCT_EDGE[i - 1]) / (PCT_EDGE[i] - PCT_EDGE[i - 1]); return 1; })();
+  const wrap = el("div", "pctbox");
+  const svg = mk("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "今回の記録は、ランキングの上位" + pct.toFixed(1) + "パーセントです" });
+  const cp = mk("clipPath", { id: "pcp" }, mk("defs", null, svg)); mk("polygon", { points: ax + "," + top + " " + (ax + half) + "," + bot + " " + (ax - half) + "," + bot }, cp);
+  const g = mk("g", { "clip-path": "url(#pcp)" }, svg);
+  for (let i = 0; i < PCT_COL.length; i++) mk("rect", { x: 0, y: yAt(PCT_Y[i]), width: W, height: yAt(PCT_Y[i + 1]) - yAt(PCT_Y[i]) + 0.5, fill: PCT_COL[i] }, g);
+  mk("polygon", { points: ax + "," + top + " " + (ax + half) + "," + bot + " " + (ax - half) + "," + bot, fill: "none", stroke: "#fff", "stroke-width": 3 }, svg);
+  for (let i = 1; i < PCT_EDGE.length; i++) {
+    const y = yAt(PCT_Y[i]), x = ax + hw(y);
+    mk("line", { x1: x, y1: y, x2: x + 14, y2: y, stroke: PCT_COL[i - 1], "stroke-width": 2 }, svg);
+    const t = mk("text", { x: x + 17, y: y + 4, fill: "#fff", "font-size": 11 }, svg); t.textContent = PCT_EDGE[i] + "%";
+  }
+  const my = yAt(f), mx = ax - hw(my);
+  mk("line", { x1: 6, y1: my, x2: ax + hw(my) + 2, y2: my, stroke: "#27d9ff", "stroke-width": 3 }, svg);
+  const lb = mk("text", { x: 8, y: my - 8, fill: "#27d9ff", "font-size": 13, "font-weight": "bold" }, svg); lb.textContent = "上位" + pct.toFixed(1) + "%";
+  wrap.appendChild(svg);
+  const tx = el("div", "pctx"); tx.append(document.createTextNode("暫定順位: "), el("b", null, "上位" + pct.toFixed(1) + "%"), document.createTextNode("(" + n + "人中" + rank + "位)"));
+  wrap.appendChild(tx);
+  return wrap;
+}
 function renderEnd(root) {
   if (rollEligible(G) && !G.rollShown) { G.rollShown = true; setTimeout(() => playEndroll(), 600); } // ダメージ0で回廊クリア: エンドロール
   const sc = sceneCanvas();
@@ -2311,6 +2348,7 @@ function renderEnd(root) {
   add("答えた問題", G.answered + " / " + G.qs.length);
   add("平均解答時間", G.tN ? (G.tSum / G.tN / 1000).toFixed(1) + "秒" : "-");
   b.appendChild(dl);
+  { const pb = G.mode === "rate" ? percentBox() : null; if (pb) b.appendChild(pb); } // 今回の記録は、ランキングの上位何%か
   if (G.cleared && m.next) b.appendChild(el("p", "ok-msg", "「" + MODES[m.next].name + "」が解放されました!"));
   let text = "";
   if (G.mode === "rate") {
