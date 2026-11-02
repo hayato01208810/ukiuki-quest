@@ -907,7 +907,7 @@ function normQ(x) {
   if (!MODES[g]) g = Number.isInteger(x.stage) ? (x.stage <= 2 ? "chu" : "jo") : null;
   if (!g || typeof x.q !== "string" || !Array.isArray(x.c) || x.c.length !== 4 || !x.c.every((c) => typeof c === "string") ||
       !Number.isInteger(x.a) || x.a < 0 || x.a > 3) return null;
-  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", late: x.late === true, at: x.at || 0, cat: CAT_NAME[x.cat] ? x.cat : (SEED_CAT[x.id] || "") };
+  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", late: x.late === true, dmg: (Number.isInteger(x.dmg) && x.dmg >= 1 && x.dmg <= 99) ? x.dmg : 1, at: x.at || 0, cat: CAT_NAME[x.cat] ? x.cat : (SEED_CAT[x.id] || "") };
 }
 // ---- 最初から入っている問題(外部公開版)。Firebase側の同じIDの問題があれば、そちらで上書きされる ----
 const CATS = [["water","水の特性と体への影響"],["cause","水の事故の要因"],["lg","LGの役割・服装・監視"],["rule","施設ルール"],["scene","現場対応シナリオ"],["rescue","救助の考え方"],["basic","応急手当の基本"],["injury","外傷の手当"],["heat","熱中症"],["sick","体調不良"],["cpr","心肺蘇生・AED・溺水"],["manner","接遇・マナー"]];
@@ -961,7 +961,7 @@ function qSet(id, data) { return STANDALONE ? db.doc("questions/" + id).set(data
 function qDel(id) { return (STANDALONE && SEED_Q.some((x) => x.id === id)) ? db.doc("questions/" + id).set({ deleted: true }, { merge: true }) : db.doc("questions/" + id).delete(); }
 function reviewList() { // いま復習できる問題(間違えたまま、まだ残っているもの)
   const out = [];
-  extraQ.forEach((x) => { if (missed.has(x.id)) out.push({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e }); });
+  extraQ.forEach((x) => { if (missed.has(x.id)) out.push({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg }); });
   if (missed.has(JO_FINAL.id)) out.push(JO_FINAL);
   return out;
 }
@@ -969,7 +969,7 @@ const lateIds = new Set();
 function poolFor(mode) {
   lateIds.clear(); extraQ.forEach((x) => { if (x.late) lateIds.add(x.id); });
   if (mode === "review") return reviewList();
-  const ex = (g) => extraQ.filter((x) => x.genre === g).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e }));
+  const ex = (g) => extraQ.filter((x) => x.genre === g).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg }));
   // 自分たちの問題(アプリで登録・編集したもの)が十分あれば、それだけを出す。足りないときだけ、見本の問題で補う
   const enough = (arr, n) => arr.length >= n;
   if (mode === "chu") return enough(ex("chu"), MODES.chu.len) ? ex("chu") : BASE.chu.concat(ex("chu"));
@@ -2100,11 +2100,11 @@ function renderGame(root) {
     qb.appendChild(el("div", "tapnext", "▼ タップでつぎへ"));
     qb.onclick = talkAdvance; UI.saved = null;
   } else if (fbState) {
-    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : G.timeout ? "時間切れ… HPが減った" : "不正解… HPが1つ減った"));
+    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : G.timeout ? "時間切れ… HPが" + (G.lastDn || 1) + "つ減った" : "不正解… HPが" + (G.lastDn || 1) + "つ減った"));
     if (q.e) qb.appendChild(el("div", "exp", q.e));
   } else {
     if (G.aed) qb.appendChild(el("div", "qno", "蘇生問題 — 3問正解で体力が" + AED_HEAL + "回復"));
-    else if (!tut) qb.appendChild(el("div", "qno", "連続正解 " + G.streak));
+    else if (!tut) qb.appendChild(el("div", "qno", "連続正解 " + G.streak + (q.dmg > 1 ? "　⚠ 間違えるとダメージ" + q.dmg : "")));
     qb.appendChild(el("p", "q", "Q. " + q.q));
   }
   root.appendChild(qb); UI.qb = qb;
@@ -2446,7 +2446,7 @@ function pick(k) {
     if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
-    else { if (G.en === 40 && G.cboss && G.bossHp > 0) G.bossHp--; /* ポセイドンは、正解でも不正解でも、残り問題が1つ減る */ const dn = (G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : (G.en === 9 && !G.cboss) ? 2 : 1; /* 裏ボスのヌードルは攻撃力2(AEDで体力2に戻っても、間違えたら倒れる) */ G.hp = Math.max(0, G.hp - dn); G.dmg = (G.dmg || 0) + dn; /* 体力は0より下にしない(AEDで回復するとき、マイナスから数えないように) */ G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
+    else { if (G.en === 40 && G.cboss && G.bossHp > 0) G.bossHp--; /* ポセイドンは、正解でも不正解でも、残り問題が1つ減る */ const dn = Math.max((G.en === 40 && G.cboss) ? ((G.poseHit = (G.poseHit || 0) + 1) % 2 ? 1 : 2) : (G.en === 9 && !G.cboss) ? 2 : 1, (mq && mq.dmg) || 1); /* 問題ごとのダメージ(GMが設定)がより大きければ、そちらを使う */ G.lastDn = dn; /* 裏ボスのヌードルは攻撃力2(AEDで体力2に戻っても、間違えたら倒れる) */ G.hp = Math.max(0, G.hp - dn); G.dmg = (G.dmg || 0) + dn; /* 体力は0より下にしない(AEDで回復するとき、マイナスから数えないように) */ G.streak = 0; if (G.mode === "rate" && G.hp <= 2) preloadNoodle(); }
   } else if (!ok) G.hp--;
   render();
 }
@@ -2523,12 +2523,12 @@ function corridorList() { // まだ出ていない問題を、中級 → 上級 
   const asked = new Set(G.qs.map((x) => x.id).filter(Boolean));
   let out = [];
   ["chu", "jo", "rate"].forEach((g) => {
-    const arr = shuffle(extraQ.filter((x) => x.genre === g && !x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e })));
+    const arr = shuffle(extraQ.filter((x) => x.genre === g && !x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg })));
     if (g === "jo" && !asked.has(JO_FINAL.id)) arr.push(JO_FINAL);
     out = out.concat(arr);
   });
   // 「無限回廊の後半」用の問題は、いちばん最後にまとめて出す
-  out = out.concat(shuffle(extraQ.filter((x) => x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e }))));
+  out = out.concat(shuffle(extraQ.filter((x) => x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg }))));
   return out;
 }
 function enterCorridor() {
@@ -3007,6 +3007,13 @@ function renderQAdd(root) {
   const ee = document.createElement("input");
   ee.id = "q-e"; ee.type = "text"; ee.maxLength = 120;
   fe.append(le, ee);
+  const fd = el("div", "field");
+  const ld = el("label", null, "間違えたときのダメージ(1〜99・空欄は1)");
+  ld.htmlFor = "q-dmg";
+  const dd = document.createElement("input");
+  dd.id = "q-dmg"; dd.type = "number"; dd.min = "1"; dd.max = "99"; dd.step = "1"; dd.inputMode = "numeric"; dd.placeholder = "1";
+  fd.append(ld, dd);
+  const dmgVal = () => { const n = Math.floor(Number(dd.value)); return (dd.value !== "" && n >= 1 && n <= 99) ? n : 1; };
   const st = el("p", "note");
   st.hidden = true;
   let editing = null;
@@ -3017,7 +3024,7 @@ function renderQAdd(root) {
   cancel.type = "button"; cancel.hidden = true;
   const resetForm = () => {
     editing = null; h2.textContent = "問題を追加する"; go.textContent = "▶ 追加する"; cancel.hidden = true;
-    ta.value = ""; csel.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = "";
+    ta.value = ""; csel.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "";
     const r0 = form.querySelector("#q-ans0"); if (r0) r0.checked = true;
   };
   cancel.onclick = () => { resetForm(); st.hidden = true; };
@@ -3025,11 +3032,11 @@ function renderQAdd(root) {
     editing = it; sel.value = it.genre; csel.value = it.cat || ""; ta.value = it.q;
     ins.forEach((i, k) => { i.value = it.c[k]; });
     const rr = form.querySelector("#q-ans" + it.a); if (rr) rr.checked = true;
-    ee.value = it.e || "";
+    ee.value = it.e || ""; dd.value = it.dmg > 1 ? String(it.dmg) : "";
     h2.textContent = "問題を編集する"; go.textContent = "▶ 保存する"; cancel.hidden = false; st.hidden = true;
     h2.scrollIntoView({ block: "start", behavior: "smooth" });
   };
-  form.append(fs, fcat, fq, fc, fe, st, go, cancel);
+  form.append(fs, fcat, fq, fc, fe, fd, st, go, cancel);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const say = (t, bad) => { st.textContent = t; st.className = bad ? "err" : "ok-msg"; st.hidden = false; };
@@ -3044,13 +3051,13 @@ function renderQAdd(root) {
     go.disabled = true;
     try {
       if (editing) {
-        await qSet(editing.id, { genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim() });
+        await qSet(editing.id, { genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), dmg: dmgVal() });
         resetForm();
         say("保存しました。次の挑戦から反映されます。", false);
       } else {
-        await db.collection("questions").add({ genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), by: uid, at: Date.now() });
+        await db.collection("questions").add({ genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), dmg: dmgVal(), by: uid, at: Date.now() });
         say("追加しました。次の挑戦から出題されます。", false);
-        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = "";
+        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "";
       }
     } catch (x) { say((editing ? "保存" : "追加") + "に失敗しました。時間をおいて、もう一度試してください。", true); }
     go.disabled = !qAddAllowed();
