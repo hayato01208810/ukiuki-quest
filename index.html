@@ -117,6 +117,12 @@ header { display: flex; flex-direction: column; gap: 2px; }
 .enemy-wrap.i37 { animation: idle-float 1.4s ease-in-out infinite; }
 .enemy-wrap.i38 { animation: idle-squash 1.2s ease-in-out infinite; }
 .enemy-wrap.i42 { animation: idle-wobble 1.6s ease-in-out infinite; }
+.enemy-wrap.i45 { animation: idle-sway 1.4s ease-in-out infinite; }
+.enemy-wrap.i46 { animation: idle-rumble 0.35s linear infinite; }
+.enemy-wrap.i47 { animation: idle-float 1.6s ease-in-out infinite; }
+.enemy-wrap.i48 { animation: idle-hop 0.9s ease-in-out infinite; }
+.enemy-wrap.i49 { animation: idle-wobble 1.2s ease-in-out infinite; }
+.enemy-wrap.i50 { animation: idle-tall 2s ease-in-out infinite; }
 .enemy-wrap.i44 { animation: idle-stomp 1.3s ease-in infinite; }
 .enemy-wrap.i43 { animation: idle-sway 1.3s ease-in-out infinite; }
 .enemy-wrap.i41 { --gc: rgba(255, 215, 80, .9); animation: idle-float 1.3s ease-in-out infinite, glowpulse 1s ease-in-out infinite; }
@@ -458,8 +464,8 @@ const CBOSS = [ // 無限回廊のボス: 各ステージのさいごの5問(完
 const CORR_BG_N = 7; // 無限回廊の背景の数(廃墟のプール)
 const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 43], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
-  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
-  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / 1問30秒以内に答える / 正解1問=110レート / 1回の最高記録でランキング" },
+  jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
+  rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / 1問30秒以内に答える / 正解1問=110レート / 1回の最高記録でランキング" },
   review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
@@ -508,7 +514,13 @@ const ENEMIES = [
   { src: "enemy32.png", h: 62, ar: 1.256, alt: "ヌードルライダーFT", tag: "超激レア", where: "【超激レア】どの挑戦でも、とてもまれに現れる(約1000問に1回)。1回の挑戦で出るのは1回まで。出会えたら、かなりのラッキー!" },
   { src: "enemy33.png", h: 60, ar: 0.970, alt: "車いすを押すゾンビとガイコツ", tag: "レア", where: "【レア】どの挑戦でも、ときどき現れる(約80問に1回)。1回の挑戦で出るのは1回まで。" },
   { src: "enemy36.png", h: 66, ar: 0.736, alt: "コーンをかぶった少年たち" },
-  { src: "enemy35.png", h: 52, ar: 1.265, alt: "殺戮兵器ドルフィン" }
+  { src: "enemy35.png", h: 52, ar: 1.265, alt: "殺戮兵器ドルフィン" },
+  { src: "enemy37.png", h: 62, ar: 0.596, alt: "救助訓練ダミーの敵" },
+  { src: "enemy38.png", h: 64, ar: 0.637, alt: "高圧洗浄機の敵" },
+  { src: "enemy39.png", h: 56, ar: 0.985, alt: "ホースのうずまきの敵" },
+  { src: "enemy40.png", h: 56, ar: 0.979, alt: "怒りのストリームラインヘルパーの敵" },
+  { src: "enemy41.png", h: 52, ar: 1.101, alt: "黄色いビート板の敵" },
+  { src: "enemy42.png", h: 68, ar: 0.450, alt: "緑のビート板の敵" }
 ]; // 9〜12は特別な敵(ふつうの抽選には出ない)。13以降はふつうの敵(上級・レート戦の抽選に入る)
 function enemyIdx(mode) {
   const m = MODES[mode];
@@ -2857,7 +2869,7 @@ function enDesc(i) {
   MODE_KEYS.forEach((k) => { if (MODES[k].enemies.indexOf(i) >= 0) where.push(MODES[k].name); });
   return "出現: " + (E.where || where.join(" / "));
 }
-const STF_IDX = [25, 26, 27, 32, 33, 34]; // 図鑑の番号が stf- の敵
+const STF_IDX = [25, 26, 27, 32, 33, 34, 45, 46, 47, 48, 49, 50]; // 図鑑の番号が stf- の敵
 function zkList() { // 図鑑の並び: ふつうの敵(shf-) → stf- の敵 → ボス・特別な敵(最後)
   const pad = (n) => String(n).padStart(3, "0");
   const normal = [], stf = [], sp = [];
