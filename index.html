@@ -2104,7 +2104,7 @@ function renderGame(root) {
     if (q.e) qb.appendChild(el("div", "exp", q.e));
   } else {
     if (G.aed) qb.appendChild(el("div", "qno", "蘇生問題 — 3問正解で体力が" + AED_HEAL + "回復"));
-    else if (!tut) qb.appendChild(el("div", "qno", "連続正解 " + G.streak + (q.dmg > 1 ? "　⚠ 間違えるとダメージ" + q.dmg : "")));
+    else if (!tut) qb.appendChild(el("div", "qno", "連続正解 " + G.streak + (q.dmg > 1 ? "　⚠ 間違えると自分が受けるダメージ" + q.dmg : "")));
     qb.appendChild(el("p", "q", "Q. " + q.q));
   }
   root.appendChild(qb); UI.qb = qb;
@@ -3008,7 +3008,7 @@ function renderQAdd(root) {
   ee.id = "q-e"; ee.type = "text"; ee.maxLength = 120;
   fe.append(le, ee);
   const fd = el("div", "field");
-  const ld = el("label", null, "間違えたときのダメージ");
+  const ld = el("label", null, "間違えたとき自分が受けるダメージ");
   ld.htmlFor = "q-dmg";
   const dd = document.createElement("select");
   dd.id = "q-dmg";
