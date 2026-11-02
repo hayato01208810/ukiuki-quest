@@ -907,7 +907,7 @@ function normQ(x) {
   if (!MODES[g]) g = Number.isInteger(x.stage) ? (x.stage <= 2 ? "chu" : "jo") : null;
   if (!g || typeof x.q !== "string" || !Array.isArray(x.c) || x.c.length !== 4 || !x.c.every((c) => typeof c === "string") ||
       !Number.isInteger(x.a) || x.a < 0 || x.a > 3) return null;
-  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", late: x.late === true, dmg: (Number.isInteger(x.dmg) && x.dmg >= 1 && x.dmg <= 99) ? x.dmg : 1, at: x.at || 0, cat: CAT_NAME[x.cat] ? x.cat : (SEED_CAT[x.id] || "") };
+  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", late: x.late === true, dmg: (Number.isInteger(x.dmg) && x.dmg >= 1 && x.dmg <= 3) ? x.dmg : 1, at: x.at || 0, cat: CAT_NAME[x.cat] ? x.cat : (SEED_CAT[x.id] || "") };
 }
 // ---- 最初から入っている問題(外部公開版)。Firebase側の同じIDの問題があれば、そちらで上書きされる ----
 const CATS = [["water","水の特性と体への影響"],["cause","水の事故の要因"],["lg","LGの役割・服装・監視"],["rule","施設ルール"],["scene","現場対応シナリオ"],["rescue","救助の考え方"],["basic","応急手当の基本"],["injury","外傷の手当"],["heat","熱中症"],["sick","体調不良"],["cpr","心肺蘇生・AED・溺水"],["manner","接遇・マナー"]];
@@ -3008,12 +3008,13 @@ function renderQAdd(root) {
   ee.id = "q-e"; ee.type = "text"; ee.maxLength = 120;
   fe.append(le, ee);
   const fd = el("div", "field");
-  const ld = el("label", null, "間違えたときのダメージ(1〜99・空欄は1)");
+  const ld = el("label", null, "間違えたときのダメージ");
   ld.htmlFor = "q-dmg";
-  const dd = document.createElement("input");
-  dd.id = "q-dmg"; dd.type = "number"; dd.min = "1"; dd.max = "99"; dd.step = "1"; dd.inputMode = "numeric"; dd.placeholder = "1";
+  const dd = document.createElement("select");
+  dd.id = "q-dmg";
+  [1, 2, 3].forEach((n) => { const o = document.createElement("option"); o.value = String(n); o.textContent = n + (n === 1 ? "(ふつう)" : ""); dd.appendChild(o); });
   fd.append(ld, dd);
-  const dmgVal = () => { const n = Math.floor(Number(dd.value)); return (dd.value !== "" && n >= 1 && n <= 99) ? n : 1; };
+  const dmgVal = () => { const n = Number(dd.value); return (n >= 1 && n <= 3) ? n : 1; };
   const st = el("p", "note");
   st.hidden = true;
   let editing = null;
@@ -3024,7 +3025,7 @@ function renderQAdd(root) {
   cancel.type = "button"; cancel.hidden = true;
   const resetForm = () => {
     editing = null; h2.textContent = "問題を追加する"; go.textContent = "▶ 追加する"; cancel.hidden = true;
-    ta.value = ""; csel.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "";
+    ta.value = ""; csel.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "1";
     const r0 = form.querySelector("#q-ans0"); if (r0) r0.checked = true;
   };
   cancel.onclick = () => { resetForm(); st.hidden = true; };
@@ -3032,7 +3033,7 @@ function renderQAdd(root) {
     editing = it; sel.value = it.genre; csel.value = it.cat || ""; ta.value = it.q;
     ins.forEach((i, k) => { i.value = it.c[k]; });
     const rr = form.querySelector("#q-ans" + it.a); if (rr) rr.checked = true;
-    ee.value = it.e || ""; dd.value = it.dmg > 1 ? String(it.dmg) : "";
+    ee.value = it.e || ""; dd.value = (it.dmg >= 2 && it.dmg <= 3) ? String(it.dmg) : "1";
     h2.textContent = "問題を編集する"; go.textContent = "▶ 保存する"; cancel.hidden = false; st.hidden = true;
     h2.scrollIntoView({ block: "start", behavior: "smooth" });
   };
@@ -3057,7 +3058,7 @@ function renderQAdd(root) {
       } else {
         await db.collection("questions").add({ genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), dmg: dmgVal(), by: uid, at: Date.now() });
         say("追加しました。次の挑戦から出題されます。", false);
-        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "";
+        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "1";
       }
     } catch (x) { say((editing ? "保存" : "追加") + "に失敗しました。時間をおいて、もう一度試してください。", true); }
     go.disabled = !qAddAllowed();
