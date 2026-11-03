@@ -408,6 +408,7 @@ html.playing #play { flex: 1 1 auto; min-height: 0; gap: 8px; }
     <div class="tabs" role="group" aria-label="ランキングの種類">
       <button type="button" class="tab" id="tab-rate" aria-pressed="true">レート</button>
       <button type="button" class="tab" id="tab-streak" aria-pressed="false">連続正解</button>
+      <button type="button" class="tab" id="tab-ta" aria-pressed="false">タイムアタック</button>
     </div>
     <ol class="rows" id="rows"></ol>
     <p class="empty" id="empty">ランキングを読み込んでいます。</p>
@@ -422,7 +423,7 @@ html.playing #play { flex: 1 1 auto; min-height: 0; gap: 8px; }
 // ================= 設定と問題データ(サンプル。差し替えるときはここだけ変えます) =================
 const HP_MAX = 5;
 const RATE_HP = 3; // レート戦のはじめの体力
-function maxHp(mode) { return mode === "rate" ? RATE_HP : HP_MAX; }
+function maxHp(mode) { return (mode === "rate" || mode === "ta") ? RATE_HP : HP_MAX; }
 const RATE_PER_CORRECT = 110; // レート戦で、1問正解ごとに上がるレート
 // 入場の合言葉(SHA-256)。ページを開けた人は中身を読めるので、簡易の入口です。
 const PW_HASH = "425e046ba71f4ae2f74835d829b3eab8c5315956c95209c78924f2558c3a49a2";
@@ -466,6 +467,7 @@ const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 43], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
   jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
   rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / 1問30秒以内に答える / 正解1問=110レート / 1回の最高記録でランキング" },
+  ta: { name: "タイムアタック", len: 200, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: null, desc: "持ち時間5分 / 全問題からランダム出題 / ミス1問で-30秒 / 1問正解で100レート(専用ランキング)" },
   review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
@@ -535,6 +537,9 @@ const RARE_EN = 20, RARE_P = 0.004; // 激レアの敵(看板ゾンビ): 1問ご
 const isCbEn = (e) => e >= 28 && e <= 31 || e === 39 || e === 40; // 無限回廊のボス
 const isBossEn = (e) => e === 12 || e === 9 || e === 19 || e === 24 || isCbEn(e); // 体力ゲージのある敵(中級ボス / 裏ボス / ラスボス)
 const MODE_KEYS = ["chu", "jo", "rate"];
+const HOME_KEYS = ["chu", "jo", "rate", "ta"];
+const TA_MS = 300000, TA_PEN = 30000, TA_PER_CORRECT = 100; // タイムアタック: 持ち時間5分 / ミス1問につき-30秒 / 1問正解で100レート
+const isRt = (m) => m === "rate" || m === "ta"; // レート戦と同じ見た目(背景)を使うモード
 
 // c: 選択肢 / a: 正解の位置(0始まり) / e: 解説 / tip: チュートリアルの説明
 const TUT = [
@@ -890,12 +895,13 @@ function noteText() {
   return "";
 }
 function isUnlocked(mode) {
-  if (mode === "review") return tutorialDone;
+  if (mode === "review" || mode === "ta") return tutorialDone;
   if (mode === "chu") return tutorialDone;
   if (mode === "jo") return prog.chu;
   return prog.jo;
 }
 function lockText(mode) {
+  if (mode === "ta") return "チュートリアルを終えると解放されます。";
   if (mode === "chu") return "チュートリアルを終えると解放されます。";
   if (mode === "jo") return "中級をクリアすると解放されます。";
   return "上級をクリアすると解放されます。";
@@ -987,6 +993,7 @@ function poolFor(mode) {
   const enough = (arr, n) => arr.length >= n;
   if (mode === "chu") return enough(ex("chu"), MODES.chu.len) ? ex("chu") : BASE.chu.concat(ex("chu"));
   if (mode === "jo") return enough(ex("jo"), MODES.jo.len) ? ex("jo") : BASE.jo.concat(ex("jo"));
+  if (mode === "ta") { const all = ex("chu").concat(ex("jo"), ex("rate")); return enough(all, 20) ? all : BASE.chu.concat(BASE.jo, all); } // タイムアタック: 全問題(「後半用」の問題も含む)
   const mine = ex("chu").concat(ex("jo"), ex("rate").filter((x) => !lateIds.has(x.id))); // 「無限回廊の後半で出す」問題(late)は、50問のレート戦には出さない
   return enough(mine, 20) ? mine : BASE.chu.concat(BASE.jo, mine);
 }
@@ -1105,7 +1112,7 @@ function drawScene() {
   if (!c) return;
   const x = c.getContext("2d");
   x.imageSmoothingEnabled = false;
-  if (view === "name" || G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "review" || G.mode === "jo" || G.mode === "rate" || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
+  if (view === "name" || G && (G.mode === "tutorial" || G.mode === "chu" || G.mode === "review" || G.mode === "jo" || isRt(G.mode) || G.en === 9)) x.clearRect(0, 0, W, H); // チュートリアルは、写真風のドット絵の背景(CSS側)を使う
   else x.drawImage(bgFor(palIdx()), 0, 0);
   if (G && G.flash && G.state === "fb" && !G.lastOk) { x.fillStyle = "rgba(255,60,60,0.3)"; x.fillRect(0, 0, W, H); }
 }
@@ -1131,9 +1138,9 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (G && G.mode === "rate" && !G.test ? " rt" : "") + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && G.mode === "rate" ? " rbg" : ""));
+  const wrap = el("div", "scene" + (G && isRt(G.mode) && !G.test ? " rt" : "") + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && isRt(G.mode) ? " rbg" : ""));
   if (G && G.mode === "rate" && G.corridor && (G.en !== 9 || G.cboss)) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
-  else if (G && G.mode === "rate" && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
+  else if (G && isRt(G.mode) && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
   cv.id = "scene"; cv.width = W; cv.height = H;
   cv.setAttribute("role", "img");
@@ -1931,7 +1938,7 @@ function renderHome(root) {
   b.appendChild(tut);
 
   const modes = el("div", "modes");
-  MODE_KEYS.forEach((k) => {
+  HOME_KEYS.forEach((k) => {
     const m = MODES[k];
     const wrap = el("div", "mode");
     const open = isUnlocked(k);
@@ -2091,6 +2098,7 @@ function renderGame(root) {
   br.appendChild(hs);
   sc.append(tl, tr, br);
   if (timedNow()) sc.appendChild(makeTimerBar()); // 制限時間(レート戦)
+  else if (taBarNow()) sc.appendChild(makeTaBar()); // 持ち時間(タイムアタック)
   if (!G.talk) { // 途中でやめて、タイトルに戻る(1回目で確認、2回目で戻る)
     const qt = el("button", "box ov bl" + (G.quitAsk ? " ask" : ""), G.quitAsk ? "本当にやめる?" : "◀ やめる");
     qt.type = "button";
@@ -2118,7 +2126,7 @@ function renderGame(root) {
     qb.appendChild(el("div", "tapnext", "▼ タップでつぎへ"));
     qb.onclick = talkAdvance; UI.saved = null;
   } else if (fbState) {
-    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : G.timeout ? "時間切れ… HPが" + (G.lastDn || 1) + "つ減った" : "不正解… HPが" + (G.lastDn || 1) + "つ減った"));
+    qb.appendChild(el("div", "head", G.lastOk ? "正解!" : G.aed ? "不正解… 蘇生に失敗した" : G.timeout ? "時間切れ… HPが" + (G.lastDn || 1) + "つ減った" : "不正解… HPが" + (G.lastDn || 1) + "つ減った" + (G.mode === "ta" ? "・タイム-30秒" : "")));
     if (q.e) qb.appendChild(el("div", "exp", q.e));
   } else {
     if (G.aed) qb.appendChild(el("div", "qno", "蘇生問題 — 3問正解で体力が" + AED_HEAL + "回復"));
@@ -2150,7 +2158,7 @@ function renderGame(root) {
   const slot = el("div", "nxslot"); UI.slot = slot;
   if (fbState && !talking) {
     const canAed = G.mode === "rate" && !G.aedDone && !G.aed; // 体力0でも、回復キャラが助けに来る
-    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
+    const finalQ = !tut && (G.aed ? (!G.lastOk) : ((G.mode === "ta" && G.taLeft <= 0) || (G.hp <= 0 && !canAed) || (G.qi === G.qs.length - 1 && !(G.en === 19 && G.bossHp > 0) && !(G.mode === "rate" && !G.corridor && corridorList().length > 0))));
     const nx = el("button", "btn", G.aed && G.lastOk ? (G.aed.i >= AEDQ.length - 1 ? "▶ 体力を回復する!" : "▶ つぎの蘇生問題へ") : finalQ ? "▶ 結果を見る" : "▶ つぎへ");
     nx.type = "button";
     nx.onclick = next;
@@ -2210,9 +2218,28 @@ function tmPaint() {
   UI.tm.fi.style.width = Math.max(0, Math.min(100, G.tm.left / (G.tm.max || TIME_LIMIT * 1000) * 100)) + "%";
   UI.tm.d.classList.toggle("warn", sec <= 5);
 }
+function taBarNow() { return !!(G && G.mode === "ta" && (G.state === "ask" || G.state === "fb") && !G.aed && !G.talk && G.opts); }
+const fmtMs = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+function makeTaBar() {
+  const d = el("div", "tmr"), sp = el("span", null, ""), tb = el("div", "tb"), fi = document.createElement("i");
+  tb.appendChild(fi); d.append(tb, sp); UI.tm = { d: d, sp: sp, fi: fi, ta: true };
+  taPaint();
+  return d;
+}
+function taPaint() {
+  if (!UI.tm || !UI.tm.ta || !G || G.taLeft == null) return;
+  UI.tm.sp.textContent = "残り " + fmtMs(G.taLeft) + (G.taMiss ? "  ミス" + G.taMiss + "(-" + G.taMiss * TA_PEN / 1000 + "秒)" : "");
+  UI.tm.fi.style.width = Math.max(0, Math.min(100, G.taLeft / TA_MS * 100)) + "%";
+  UI.tm.d.classList.toggle("warn", G.taLeft <= 30000);
+}
 let tmLast = Date.now();
 setInterval(() => {
   const now = Date.now(), dt = Math.min(300, now - tmLast); tmLast = now;
+  if (G && G.mode === "ta" && G.state === "ask" && G.opts && !G.aed && !G.talk && !G.lock && !document.hidden && UI.tm && UI.tm.ta && UI.tm.d.isConnected) { // 持ち時間は、問題を見ている間だけ減る
+    G.taLeft -= dt; taPaint();
+    if (G.taLeft <= 0) { G.taLeft = 0; endRun(true); }
+    return;
+  }
   if (document.hidden || !timedNow() || !G.tm || G.tm.key !== tmKey() || !UI.tm || !UI.tm.d.isConnected) return;
   G.tm.left -= dt;
   tmPaint();
@@ -2351,7 +2378,7 @@ function renderEnd(root) {
   root.appendChild(sc);
   const m = MODES[G.mode];
   const b = el("div", "box stack");
-  b.appendChild(el("h2", "verdict " + (G.cleared ? "clear" : "over"), G.cleared ? m.name + "クリア!" : "ゲームオーバー"));
+  b.appendChild(el("h2", "verdict " + (G.cleared ? "clear" : "over"), G.mode === "ta" ? (G.taTimeUp ? "タイムアップ!" : "ゲームオーバー") : G.cleared ? m.name + "クリア!" : "ゲームオーバー"));
   if (G.lostToPose) b.appendChild(el("p", "pawa", "「お前がオレに勝てる時なんて、オレが死ぬ1秒前に奇跡が起きた時だけだ」"));
   if (G.lostToNod) b.appendChild(el("p", "pawa", "「俺のパワハラは止まらんえぇ〜」"));
   if (G.mode === "rate" && runTier(G) > 0) {
@@ -2373,10 +2400,16 @@ function renderEnd(root) {
     else if (G.corrDone && !G.test) add("無限回廊クリアボーナス", "なし(受けたダメージ " + (G.dmg || 0) + ")");
     if (G.total != null) add("自己ベストのレート", G.total.toLocaleString("en-US") + (G.newBest ? "(更新!)" : ""));
   }
+  if (G.mode === "ta") {
+    add("今回のレート", (G.taRating || 0).toLocaleString("en-US") + "(1問正解で" + TA_PER_CORRECT + ")");
+    add("ミス", (G.taMiss || 0) + "問(タイム -" + (G.taMiss || 0) * TA_PEN / 1000 + "秒)");
+    add("残り時間", fmtMs(G.taLeft || 0));
+    if (G.taTotal != null) add("自己ベストのレート", G.taTotal.toLocaleString("en-US") + (G.taNewBest ? "(更新!)" : ""));
+  }
   add("今回の正答率", G.answered ? Math.round(G.correct / G.answered * 100) + "%" : "-");
   add("最大の連続正解", G.maxStreak + "問");
   if (G.snap) add("無限回廊", (G.answered - G.snap.answered) + "問に挑戦 / " + (G.correct - G.snap.correct) + "問 正解" + (G.corrDone ? "(全問せいは!)" : ""));
-  add("答えた問題", G.answered + " / " + G.qs.length);
+  add("答えた問題", G.mode === "ta" ? G.answered + "問" : G.answered + " / " + G.qs.length);
   add("平均解答時間", G.tN ? (G.tSum / G.tN / 1000).toFixed(1) + "秒" : "-");
   b.appendChild(dl);
   { const pb = G.mode === "rate" ? percentBox() : null; if (pb) b.appendChild(pb); } // 今回の記録は、ランキングの上位何%か
@@ -2387,7 +2420,12 @@ function renderEnd(root) {
     else if (G.save === "saved") text = (G.newBest ? "自己ベストを更新しました。ランキングに反映しました。" : "ランキングに反映しました。ランキングは1回の挑戦での最高記録です。");
     else if (G.save === "failed") text = "ランキングへの登録に失敗しました。時間をおいて、もう一度挑戦してください。";
     else text = noteText();
-  } else text = "ランキングの対象は、レート戦だけです。";
+  } else if (G.mode === "ta") {
+    if (G.save === "saving") text = "タイムアタックのランキングに登録しています…";
+    else if (G.save === "saved") text = (G.taNewBest ? "自己ベストを更新しました。" : "") + "タイムアタックのランキングに反映しました。ランキングは1回の挑戦での最高記録です。";
+    else if (G.save === "failed") text = "ランキングへの登録に失敗しました。時間をおいて、もう一度挑戦してください。";
+    else text = noteText();
+  } else text = "ランキングの対象は、レート戦とタイムアタックです。";
   if (text) b.appendChild(el("p", "note", text));
   const row = el("div", "row-btns");
   if (G.cleared && m.next) {
@@ -2422,6 +2460,7 @@ function startMode(mode) {
   { const r = Math.random(); if (r < RARE2_P) { G.en = RARE2_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P) { G.en = RARE_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P + RARE3_P) { G.en = RARE3_EN; G.rareDone = true; } }
   if (mode === "rate") G.evAt = 2 + Math.floor(Math.random() * (MODES[mode].len - MODES[mode].boss.hp - 6)); // ラスボス戦に入る前に収まる位置
   if (mode === "rate") preloadAed();
+  if (mode === "ta") { G.aedDone = true; G.evDone = true; G.nodDone = true; G.taLeft = TA_MS; G.taMiss = 0; } // 蘇生・イベント・裏ボスなし
   useEnQ();
   view = "home";
   render();
@@ -2474,6 +2513,7 @@ function pick(k) {
   }
   if (G.mode !== "tutorial") {
     G.answered++;
+    if (G.mode === "ta" && !ok) { G.taMiss = (G.taMiss || 0) + 1; G.taLeft = Math.max(0, G.taLeft - TA_PEN); } // ミス1問につき30秒のペナルティ
     if (!G.test && G.mode !== "review") recStat(curQ(), ok, G.lastMs); // 裏ボス戦の専用問題も、分析に数える
     if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
@@ -2489,6 +2529,7 @@ function next() {
     return;
   }
   if (G.aed) { aedNext(); return; }
+  if (G.mode === "ta" && G.taLeft <= 0) { endRun(true); return; } // タイムアップ
   if (G.hp <= 0) { if (G.mode === "rate" && !G.aedDone) { startAed(); return; } endRun(false); return; }
   G.qi++;
   const B = MODES[G.mode].boss;
@@ -2499,7 +2540,7 @@ function next() {
   }
   G.state = "ask"; G.opts = null; G.picked = -1; G.lock = false; G.ms = 0;
   G.en = enemyIdx(G.mode); G.appear = true; G.played = false; G.flash = false;
-  if (!G.corridor && G.mode === "rate") { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
+  if (!G.corridor && isRt(G.mode)) { const nb = Math.floor(G.kills / RATE_BG_EVERY) % RATE_BG_N; if (nb !== G.bgi) { G.bgi = nb; G.bgNew = true; } }
   if (!G.evDone && G.qi === G.evAt) G.en = 11; else if (!G.evDone && G.qi === G.evAt + 1) { G.en = 10; G.evDone = true; } // おじさんは、1回の挑戦で1回だけ
   if (!G.rareDone && G.en !== 10 && G.en !== 11) { const r = Math.random(); if (r < RARE2_P) G.en = RARE2_EN; else if (r < RARE2_P + RARE_P) G.en = RARE_EN; else if (r < RARE2_P + RARE_P + RARE3_P) G.en = RARE3_EN; } // 激レア(ボス・裏ボス・おじさんの場面では、あとで上書きされて出ない)
   const bossZone = () => !!B && !G.corridor && (G.bossStarted || G.qi >= G.qs.length - B.hp);
@@ -2636,14 +2677,16 @@ function endRun(cleared) {
   if (G.snap) cleared = true; // 無限回廊の途中でたおれても、レート戦クリアは、そのまま
   G.state = "end"; G.cleared = cleared; G.aed = null;
   flushStats();
+  if (G.mode === "ta") { G.taRating = G.correct * TA_PER_CORRECT; if (cleared) G.taTimeUp = true; }
   G.lostToPose = lostRaw && G.en === 40 && G.cboss;
   G.lostToNod = !cleared && G.en === 9; // ヌードルモンスターに負けたときだけ、あのセリフを出す
   if (cleared && G.mode === "chu") { prog.chu = true; saveProg(); }
   if (cleared && G.mode === "jo") { prog.jo = true; saveProg(); }
-  G.save = (G.mode === "rate" && canSave() && !G.test) ? "saving" : "";
+  G.save = ((G.mode === "rate" || G.mode === "ta") && canSave() && !G.test) ? "saving" : "";
   render();
   window.scrollTo({ top: 0 });
   if (G.mode === "rate" && !G.test) saveRun(G);
+  if (G.mode === "ta" && !G.test) saveTA(G);
 }
 
 // ================= 設定と問題追加 =================
@@ -3212,6 +3255,22 @@ function renderQList() {
 }
 
 // ================= レート戦の記録(自分の行だけ書く) =================
+async function saveTA(run) { // タイムアタックの記録(自分の行に、ta〜の項目として足す)
+  if (!canSave()) return;
+  try {
+    const ref = db.doc("results/" + uid);
+    const snap = await ref.get();
+    const prev = snap.exists ? snap.data() : {};
+    const rating = Math.max(prev.taRating || 0, run.taRating || 0);
+    await ref.set({ name: myName, taRating: rating, taBest: Math.max(prev.taBest || 0, run.correct), taRuns: (prev.taRuns || 0) + 1, taAt: Date.now() }, { merge: true });
+    run.taTotal = rating;
+    run.taNewBest = (run.taRating || 0) > (prev.taRating || 0);
+    run.save = "saved";
+  } catch (e) {
+    run.save = "failed";
+  }
+  if (G === run && G.state === "end") render();
+}
 async function saveRun(run) {
   if (!canSave()) return;
   try {
@@ -3239,7 +3298,7 @@ async function saveRun(run) {
       rate: answered ? correct / answered : 0,
       rating: rating,
       updatedAt: Date.now()
-    });
+    }, { merge: true }); // タイムアタックの記録(ta〜)を消さないように、足しこむ
     run.total = rating;
     run.newBest = runRating > ratingOf(prev);
     run.save = "saved";
@@ -3308,9 +3367,51 @@ function boardRow(r, rank) {
   }
   return li;
 }
+function boardRowTA(r, rank) {
+  const li = el("li", "rw" + (r.id === uid ? " me" : "") + (rank <= 3 ? " top" : ""));
+  li.appendChild(el("span", "rk", String(rank)));
+  const who = el("div", "who");
+  const nm = el("div", "nm2");
+  nm.appendChild(el("span", tierOf(r) === TOP_TIER ? "rainbow" : null, String(r.name || "ななし").slice(0, 12)));
+  if (hasLogo(r)) nm.appendChild(logoEl());
+  if (r.id === uid) nm.appendChild(el("span", "me-tag", "あなた"));
+  who.appendChild(nm);
+  const mt = el("div", "meter"), bar = document.createElement("i");
+  bar.style.width = Math.max(0, Math.min(100, (r.taRating || 0) / (topTa || 1) * 100)) + "%";
+  mt.appendChild(bar); who.appendChild(mt);
+  who.appendChild(el("div", "detail", "最高" + (r.taBest || 0) + "問正解 / " + (r.taRuns || 1) + "回挑戦"));
+  li.appendChild(who);
+  const big = el("span", "pct"); big.textContent = (r.taRating || 0).toLocaleString("en-US"); big.appendChild(el("small", null, " R"));
+  li.appendChild(big);
+  if (STANDALONE && db && isAdmin() && r.id !== uid) { // ゲームマスターだけ: タイムアタックの記録を消せる(レート戦の記録は残る)
+    const del = el("button", "rk-del", "削除");
+    del.type = "button";
+    del.onclick = () => {
+      if (!confirm("タイムアタックのランキングから「" + String(r.name || "ななし") + "」(" + (r.taRating || 0).toLocaleString("en-US") + "R)を削除します。レート戦の記録は消えません。元に戻せません。よろしいですか?")) return;
+      del.disabled = true; del.textContent = "削除中…";
+      const D = firebase.firestore.FieldValue.delete();
+      db.doc("results/" + r.id).update({ taRating: D, taBest: D, taRuns: D, taAt: D }).then(() => { delete r.taRating; delete r.taBest; delete r.taRuns; delete r.taAt; renderBoard(); }).catch(() => { del.disabled = false; del.textContent = "削除"; alert("削除できませんでした。"); });
+    };
+    li.appendChild(del);
+  }
+  return li;
+}
+let topTa = 1;
 function renderBoard() {
   const list = $("#rows");
   list.replaceChildren();
+  $("#board-title").textContent = rankBy === "ta" ? "タイムアタックランキング" : "レート戦ランキング";
+  if (rankBy === "ta") {
+    const ta = rows.filter((r) => typeof r.taRating === "number" && r.taRuns > 0).sort((a, b) => (b.taRating || 0) - (a.taRating || 0) || (b.taBest || 0) - (a.taBest || 0) || (a.taAt || 0) - (b.taAt || 0));
+    $("#count").textContent = ta.length ? ta.length + "人が参加中" : "";
+    topTa = Math.max(1, ...ta.map((r) => r.taRating || 0));
+    const em = $("#empty");
+    if (ta.length) em.hidden = true;
+    else { em.hidden = false; em.textContent = boardState === "ready" ? "まだ誰もタイムアタックに挑戦していません。最初の1人になろう。" : boardState === "loading" ? "ランキングを読み込んでいます。" : "ランキングを表示できません。このページを開き直してください。"; }
+    const gmAll2 = STANDALONE && db && isAdmin();
+    ta.forEach((r, i) => { if (i < TOP_N || r.id === uid || gmAll2) list.appendChild(boardRowTA(r, i + 1)); });
+    return;
+  }
   const valid = rows.filter((r) => typeof r.rate === "number" && r.answered > 0);
   const sorted = valid.sort(rankBy === "rate"
     ? (a, b) => ratingOf(b) - ratingOf(a) || b.rate - a.rate || (a.updatedAt || 0) - (b.updatedAt || 0)
@@ -3334,10 +3435,12 @@ function setTab(mode) {
   rankBy = mode;
   $("#tab-rate").setAttribute("aria-pressed", String(mode === "rate"));
   $("#tab-streak").setAttribute("aria-pressed", String(mode === "streak"));
+  $("#tab-ta").setAttribute("aria-pressed", String(mode === "ta"));
   renderBoard();
 }
 $("#tab-rate").onclick = () => setTab("rate");
 $("#tab-streak").onclick = () => setTab("streak");
+$("#tab-ta").onclick = () => setTab("ta");
 
 // ================= 入場(合言葉はなし。最初のタップで音が鳴るように、タップしてはじめる画面を出す) =================
 function enterGame() {
