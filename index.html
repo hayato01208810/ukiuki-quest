@@ -408,7 +408,7 @@ html.playing #play { flex: 1 1 auto; min-height: 0; gap: 8px; }
     <div class="tabs" role="group" aria-label="ランキングの種類">
       <button type="button" class="tab" id="tab-rate" aria-pressed="true">レート</button>
       <button type="button" class="tab" id="tab-streak" aria-pressed="false">連続正解</button>
-      <button type="button" class="tab" id="tab-ta" aria-pressed="false">タイムアタック</button>
+      <button type="button" class="tab" id="tab-ta" aria-pressed="false">ボスラッシュ</button>
     </div>
     <ol class="rows" id="rows"></ol>
     <p class="empty" id="empty">ランキングを読み込んでいます。</p>
@@ -467,7 +467,7 @@ const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 43], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
   jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
   rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / 1問30秒以内に答える / 正解1問=110レート / 1回の最高記録でランキング" },
-  ta: { name: "タイムアタック", len: 200, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: null, desc: "持ち時間5分 / 全問題からランダム出題 / ミス1問で-30秒 / 1問正解で100レート(専用ランキング)" },
+  ta: { name: "ボスラッシュ", len: 200, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: null, desc: "持ち時間5分 / ボスを順番に15問ずつ(体力15) / 全問題からランダム出題 / ミス1問で-30秒 / 1問正解で100レート(専用ランキング)" },
   review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
@@ -538,7 +538,8 @@ const isCbEn = (e) => e >= 28 && e <= 31 || e === 39 || e === 40; // 無限回�
 const isBossEn = (e) => e === 12 || e === 9 || e === 19 || e === 24 || isCbEn(e); // 体力ゲージのある敵(中級ボス / 裏ボス / ラスボス)
 const MODE_KEYS = ["chu", "jo", "rate"];
 const HOME_KEYS = ["chu", "jo", "rate", "ta"];
-const TA_MS = 300000, TA_PEN = 30000, TA_PER_CORRECT = 100; // タイムアタック: 持ち時間5分 / ミス1問につき-30秒 / 1問正解で100レート
+const TA_MS = 300000, TA_PEN = 30000, TA_PER_CORRECT = 100; // ボスラッシュ: 持ち時間5分 / ミス1問につき-30秒 / 1問正解で100レート
+const RUSH = [12, 24, 19, 9, 28, 29, 30, 31, 39, 40], RUSH_HP = 15; // ボスラッシュ: 中級ボス → 上級ボス → レート戦ボス → 無限回廊の各層のボス。体力は全員15
 const isRt = (m) => m === "rate" || m === "ta"; // レート戦と同じ見た目(背景)を使うモード
 
 // c: 選択肢 / a: 正解の位置(0始まり) / e: 解説 / tip: チュートリアルの説明
@@ -993,7 +994,7 @@ function poolFor(mode) {
   const enough = (arr, n) => arr.length >= n;
   if (mode === "chu") return enough(ex("chu"), MODES.chu.len) ? ex("chu") : BASE.chu.concat(ex("chu"));
   if (mode === "jo") return enough(ex("jo"), MODES.jo.len) ? ex("jo") : BASE.jo.concat(ex("jo"));
-  if (mode === "ta") { const all = ex("chu").concat(ex("jo"), ex("rate")); return enough(all, 20) ? all : BASE.chu.concat(BASE.jo, all); } // タイムアタック: 全問題(「後半用」の問題も含む)
+  if (mode === "ta") { const all = ex("chu").concat(ex("jo"), ex("rate")); return enough(all, 20) ? all : BASE.chu.concat(BASE.jo, all); } // ボスラッシュ: 全問題(「後半用」の問題も含む)
   const mine = ex("chu").concat(ex("jo"), ex("rate").filter((x) => !lateIds.has(x.id))); // 「無限回廊の後半で出す」問題(late)は、50問のレート戦には出さない
   return enough(mine, 20) ? mine : BASE.chu.concat(BASE.jo, mine);
 }
@@ -2098,7 +2099,7 @@ function renderGame(root) {
   br.appendChild(hs);
   sc.append(tl, tr, br);
   if (timedNow()) sc.appendChild(makeTimerBar()); // 制限時間(レート戦)
-  else if (taBarNow()) sc.appendChild(makeTaBar()); // 持ち時間(タイムアタック)
+  else if (taBarNow()) sc.appendChild(makeTaBar()); // 持ち時間(ボスラッシュ)
   if (!G.talk) { // 途中でやめて、タイトルに戻る(1回目で確認、2回目で戻る)
     const qt = el("button", "box ov bl" + (G.quitAsk ? " ask" : ""), G.quitAsk ? "本当にやめる?" : "◀ やめる");
     qt.type = "button";
@@ -2108,7 +2109,7 @@ function renderGame(root) {
     };
     sc.appendChild(qt);
   }
-  if (isBossEn(G.en) && !G.aed && G.en !== 40) { // ボスの体力(ポセイドンは、体力ゲージを出さない)(中級ボス3 / 裏ボス5 / ラスボス5)
+  if (isBossEn(G.en) && !G.aed && (G.en !== 40 || G.mode === "ta")) { // ボスの体力(ポセイドンは、体力ゲージを出さない)(中級ボス3 / 裏ボス5 / ラスボス5)
     const big = G.bossMax > 12;
     const bb = el("div", "bossbar" + (G.bossMax > 6 ? " wide" : "") + (big ? " gauge" : "")); bb.appendChild(el("span", null, G.en === 40 ? "ポセイドン" : "ボス"));
     if (big) { const gb = el("div", "gbar"); const fi = document.createElement("i"); fi.style.width = Math.max(0, Math.min(100, G.bossHp / G.bossMax * 100)) + "%"; gb.appendChild(fi); bb.appendChild(gb); bb.appendChild(el("span", "gnum", G.bossHp + "/" + G.bossMax)); }
@@ -2378,7 +2379,7 @@ function renderEnd(root) {
   root.appendChild(sc);
   const m = MODES[G.mode];
   const b = el("div", "box stack");
-  b.appendChild(el("h2", "verdict " + (G.cleared ? "clear" : "over"), G.mode === "ta" ? (G.taTimeUp ? "タイムアップ!" : "ゲームオーバー") : G.cleared ? m.name + "クリア!" : "ゲームオーバー"));
+  b.appendChild(el("h2", "verdict " + (G.cleared ? "clear" : "over"), G.mode === "ta" ? (G.rushClear ? "全ボス撃破!" : G.taTimeUp ? "タイムアップ!" : "ゲームオーバー") : G.cleared ? m.name + "クリア!" : "ゲームオーバー"));
   if (G.lostToPose) b.appendChild(el("p", "pawa", "「お前がオレに勝てる時なんて、オレが死ぬ1秒前に奇跡が起きた時だけだ」"));
   if (G.lostToNod) b.appendChild(el("p", "pawa", "「俺のパワハラは止まらんえぇ〜」"));
   if (G.mode === "rate" && runTier(G) > 0) {
@@ -2404,6 +2405,7 @@ function renderEnd(root) {
     add("今回のレート", (G.taRating || 0).toLocaleString("en-US") + "(1問正解で" + TA_PER_CORRECT + ")");
     add("ミス", (G.taMiss || 0) + "問(タイム -" + (G.taMiss || 0) * TA_PEN / 1000 + "秒)");
     add("残り時間", fmtMs(G.taLeft || 0));
+    add("たおしたボス", Math.min(RUSH.length, (G.ri || 0) + (G.bossHp <= 0 ? 1 : 0)) + " / " + RUSH.length + "体");
     if (G.taTotal != null) add("自己ベストのレート", G.taTotal.toLocaleString("en-US") + (G.taNewBest ? "(更新!)" : ""));
   }
   add("今回の正答率", G.answered ? Math.round(G.correct / G.answered * 100) + "%" : "-");
@@ -2421,11 +2423,11 @@ function renderEnd(root) {
     else if (G.save === "failed") text = "ランキングへの登録に失敗しました。時間をおいて、もう一度挑戦してください。";
     else text = noteText();
   } else if (G.mode === "ta") {
-    if (G.save === "saving") text = "タイムアタックのランキングに登録しています…";
-    else if (G.save === "saved") text = (G.taNewBest ? "自己ベストを更新しました。" : "") + "タイムアタックのランキングに反映しました。ランキングは1回の挑戦での最高記録です。";
+    if (G.save === "saving") text = "ボスラッシュのランキングに登録しています…";
+    else if (G.save === "saved") text = (G.taNewBest ? "自己ベストを更新しました。" : "") + "ボスラッシュのランキングに反映しました。ランキングは1回の挑戦での最高記録です。";
     else if (G.save === "failed") text = "ランキングへの登録に失敗しました。時間をおいて、もう一度挑戦してください。";
     else text = noteText();
-  } else text = "ランキングの対象は、レート戦とタイムアタックです。";
+  } else text = "ランキングの対象は、レート戦とボスラッシュです。";
   if (text) b.appendChild(el("p", "note", text));
   const row = el("div", "row-btns");
   if (G.cleared && m.next) {
@@ -2460,7 +2462,7 @@ function startMode(mode) {
   { const r = Math.random(); if (r < RARE2_P) { G.en = RARE2_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P) { G.en = RARE_EN; G.rareDone = true; } else if (r < RARE2_P + RARE_P + RARE3_P) { G.en = RARE3_EN; G.rareDone = true; } }
   if (mode === "rate") G.evAt = 2 + Math.floor(Math.random() * (MODES[mode].len - MODES[mode].boss.hp - 6)); // ラスボス戦に入る前に収まる位置
   if (mode === "rate") preloadAed();
-  if (mode === "ta") { G.aedDone = true; G.evDone = true; G.nodDone = true; G.taLeft = TA_MS; G.taMiss = 0; } // 蘇生・イベント・裏ボスなし
+  if (mode === "ta") { G.ri = 0; G.en = RUSH[0]; G.bossHp = RUSH_HP; G.bossMax = RUSH_HP; G.cboss = false; G.rareDone = true; RUSH.forEach((e) => { const im = new Image(); im.src = ENEMIES[e].src; }); G.aedDone = true; G.evDone = true; G.nodDone = true; G.taLeft = TA_MS; G.taMiss = 0; } // 蘇生・イベント・裏ボスなし
   useEnQ();
   view = "home";
   render();
@@ -2579,6 +2581,14 @@ function next() {
   if (B && !G.nodPhase && bossZone()) { // ボス戦
     G.en = B.en;
     if (!G.bossStarted) { G.bossStarted = true; G.bossHp = B.hp; G.bossMax = B.hp; } else G.appear = false;
+  }
+  if (G.mode === "ta") { // ボスラッシュ: ボスを倒したら、つぎのボスへ(登場のセリフはなし)
+    if (G.bossHp <= 0) {
+      G.ri = (G.ri || 0) + 1;
+      if (G.ri >= RUSH.length) { G.rushClear = true; endRun(true); return; }
+      G.en = RUSH[G.ri]; G.bossHp = RUSH_HP; G.bossMax = RUSH_HP; G.appear = true; G.cboss = G.en === 9; G.talk = null;
+    } else { G.en = RUSH[G.ri || 0]; G.appear = false; G.cboss = G.en === 9; }
+    G.rareDone = true;
   }
   if (G.fixedEn != null) { G.en = G.fixedEn; G.appear = false; if (isBossEn(G.en) && G.bossHp <= 0) G.bossHp = G.bossMax; } // 図鑑のテスト対戦
   if (G.en === RARE_EN || G.en === RARE2_EN || G.en === RARE3_EN) G.rareDone = true;
@@ -3255,7 +3265,7 @@ function renderQList() {
 }
 
 // ================= レート戦の記録(自分の行だけ書く) =================
-async function saveTA(run) { // タイムアタックの記録(自分の行に、ta〜の項目として足す)
+async function saveTA(run) { // ボスラッシュの記録(自分の行に、ta〜の項目として足す)
   if (!canSave()) return;
   try {
     const ref = db.doc("results/" + uid);
@@ -3298,7 +3308,7 @@ async function saveRun(run) {
       rate: answered ? correct / answered : 0,
       rating: rating,
       updatedAt: Date.now()
-    }, { merge: true }); // タイムアタックの記録(ta〜)を消さないように、足しこむ
+    }, { merge: true }); // ボスラッシュの記録(ta〜)を消さないように、足しこむ
     run.total = rating;
     run.newBest = runRating > ratingOf(prev);
     run.save = "saved";
@@ -3383,11 +3393,11 @@ function boardRowTA(r, rank) {
   li.appendChild(who);
   const big = el("span", "pct"); big.textContent = (r.taRating || 0).toLocaleString("en-US"); big.appendChild(el("small", null, " R"));
   li.appendChild(big);
-  if (STANDALONE && db && isAdmin() && r.id !== uid) { // ゲームマスターだけ: タイムアタックの記録を消せる(レート戦の記録は残る)
+  if (STANDALONE && db && isAdmin() && r.id !== uid) { // ゲームマスターだけ: ボスラッシュの記録を消せる(レート戦の記録は残る)
     const del = el("button", "rk-del", "削除");
     del.type = "button";
     del.onclick = () => {
-      if (!confirm("タイムアタックのランキングから「" + String(r.name || "ななし") + "」(" + (r.taRating || 0).toLocaleString("en-US") + "R)を削除します。レート戦の記録は消えません。元に戻せません。よろしいですか?")) return;
+      if (!confirm("ボスラッシュのランキングから「" + String(r.name || "ななし") + "」(" + (r.taRating || 0).toLocaleString("en-US") + "R)を削除します。レート戦の記録は消えません。元に戻せません。よろしいですか?")) return;
       del.disabled = true; del.textContent = "削除中…";
       const D = firebase.firestore.FieldValue.delete();
       db.doc("results/" + r.id).update({ taRating: D, taBest: D, taRuns: D, taAt: D }).then(() => { delete r.taRating; delete r.taBest; delete r.taRuns; delete r.taAt; renderBoard(); }).catch(() => { del.disabled = false; del.textContent = "削除"; alert("削除できませんでした。"); });
@@ -3400,14 +3410,14 @@ let topTa = 1;
 function renderBoard() {
   const list = $("#rows");
   list.replaceChildren();
-  $("#board-title").textContent = rankBy === "ta" ? "タイムアタックランキング" : "レート戦ランキング";
+  $("#board-title").textContent = rankBy === "ta" ? "ボスラッシュランキング" : "レート戦ランキング";
   if (rankBy === "ta") {
     const ta = rows.filter((r) => typeof r.taRating === "number" && r.taRuns > 0).sort((a, b) => (b.taRating || 0) - (a.taRating || 0) || (b.taBest || 0) - (a.taBest || 0) || (a.taAt || 0) - (b.taAt || 0));
     $("#count").textContent = ta.length ? ta.length + "人が参加中" : "";
     topTa = Math.max(1, ...ta.map((r) => r.taRating || 0));
     const em = $("#empty");
     if (ta.length) em.hidden = true;
-    else { em.hidden = false; em.textContent = boardState === "ready" ? "まだ誰もタイムアタックに挑戦していません。最初の1人になろう。" : boardState === "loading" ? "ランキングを読み込んでいます。" : "ランキングを表示できません。このページを開き直してください。"; }
+    else { em.hidden = false; em.textContent = boardState === "ready" ? "まだ誰もボスラッシュに挑戦していません。最初の1人になろう。" : boardState === "loading" ? "ランキングを読み込んでいます。" : "ランキングを表示できません。このページを開き直してください。"; }
     const gmAll2 = STANDALONE && db && isAdmin();
     ta.forEach((r, i) => { if (i < TOP_N || r.id === uid || gmAll2) list.appendChild(boardRowTA(r, i + 1)); });
     return;
