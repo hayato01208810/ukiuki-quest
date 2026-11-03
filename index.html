@@ -1139,9 +1139,10 @@ function heart(full) {
 
 // ================= 画面 =================
 function sceneCanvas(extra) {
-  const wrap = el("div", "scene" + (G && isRt(G.mode) && !G.test ? " rt" : "") + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review") ? " chubg" : G && G.mode === "jo" ? " jobg" : G && isRt(G.mode) ? " rbg" : ""));
-  if (G && G.mode === "rate" && G.corridor && (G.en !== 9 || G.cboss)) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
-  else if (G && isRt(G.mode) && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
+  const wrap = el("div", "scene" + (G && isRt(G.mode) && !G.test ? " rt" : "") + (extra ? " " + extra : "") + (view === "name" || G && G.mode === "tutorial" ? " tutbg" : G && G.en === 9 && !G.cboss ? " nbg" : G && (G.mode === "chu" || G.mode === "review" || (G.mode === "ta" && G.ri === 0)) ? " chubg" : G && (G.mode === "jo" || (G.mode === "ta" && G.ri === 1)) ? " jobg" : G && isRt(G.mode) ? " rbg" : ""));
+  if (G && G.mode === "ta" && G.ri >= 3) wrap.style.backgroundImage = 'url("corr-bg' + Math.min(CORR_BG_N, G.ri - 2) + '.jpg")'; // ボスラッシュ: 無限回廊のボスは、その層の背景
+  else if (G && G.mode === "rate" && G.corridor && (G.en !== 9 || G.cboss)) wrap.style.backgroundImage = 'url("corr-bg' + ((G.cbi || 0) + 1) + '.jpg")';
+  else if (G && isRt(G.mode) && !(G.mode === "ta" && G.ri < 2) && G.en !== 9) wrap.style.backgroundImage = 'url("rate-bg' + (((G.bgi || 0) % RATE_BG_N) + 1) + '.jpg")';
   const cv = document.createElement("canvas");
   cv.id = "scene"; cv.width = W; cv.height = H;
   cv.setAttribute("role", "img");
