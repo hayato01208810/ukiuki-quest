@@ -47,6 +47,8 @@ service cloud.firestore {
     // 問題・敵キャラ図鑑: 誰でも読める
     match /questions/{id} { allow read: if true; }
     match /enemies/{id} { allow read: if true; }
+    // お知らせ(ゲームマスターが書いて、みんなが読む)。同じ config の中の gm(合言葉)は、読めないまま
+    match /config/notice { allow read: if true; }
     // 答えの記録(分析用): 書けるのは自分の行だけ
     match /stats/{uid} {
       allow write: if request.auth != null && request.auth.uid == uid

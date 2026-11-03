@@ -907,7 +907,7 @@ function normQ(x) {
   if (!MODES[g]) g = Number.isInteger(x.stage) ? (x.stage <= 2 ? "chu" : "jo") : null;
   if (!g || typeof x.q !== "string" || !Array.isArray(x.c) || x.c.length !== 4 || !x.c.every((c) => typeof c === "string") ||
       !Number.isInteger(x.a) || x.a < 0 || x.a > 3) return null;
-  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", late: x.late === true, dmg: (Number.isInteger(x.dmg) && x.dmg >= 1 && x.dmg <= 3) ? x.dmg : 1, at: x.at || 0, cat: CAT_NAME[x.cat] ? x.cat : (SEED_CAT[x.id] || "") };
+  return { id: x.id, genre: g, q: x.q, c: x.c, a: x.a, e: typeof x.e === "string" ? x.e : "", late: x.late === true, dmg: (Number.isInteger(x.dmg) && x.dmg >= 1 && x.dmg <= 3) ? x.dmg : 1, tl: (Number.isInteger(x.tl) && x.tl >= 5 && x.tl <= 300) ? x.tl : 0, pin: x.pin === true, off: x.off === true, at: x.at || 0, cat: CAT_NAME[x.cat] ? x.cat : (SEED_CAT[x.id] || "") };
 }
 // ---- 最初から入っている問題(外部公開版)。Firebase側の同じIDの問題があれば、そちらで上書きされる ----
 const CATS = [["water","水の特性と体への影響"],["cause","水の事故の要因"],["lg","LGの役割・服装・監視"],["rule","施設ルール"],["scene","現場対応シナリオ"],["rescue","救助の考え方"],["basic","応急手当の基本"],["injury","外傷の手当"],["heat","熱中症"],["sick","体調不良"],["cpr","心肺蘇生・AED・溺水"],["manner","接遇・マナー"]];
@@ -961,7 +961,7 @@ function qSet(id, data) { return STANDALONE ? db.doc("questions/" + id).set(data
 function qDel(id) { return (STANDALONE && SEED_Q.some((x) => x.id === id)) ? db.doc("questions/" + id).set({ deleted: true }, { merge: true }) : db.doc("questions/" + id).delete(); }
 function reviewList() { // いま復習できる問題(間違えたまま、まだ残っているもの)
   const out = [];
-  extraQ.forEach((x) => { if (missed.has(x.id)) out.push({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg }); });
+  extraQ.forEach((x) => { if (missed.has(x.id) && !x.off) out.push({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg, tl: x.tl, pin: x.pin }); });
   if (missed.has(JO_FINAL.id)) out.push(JO_FINAL);
   return out;
 }
@@ -969,7 +969,7 @@ const lateIds = new Set();
 function poolFor(mode) {
   lateIds.clear(); extraQ.forEach((x) => { if (x.late) lateIds.add(x.id); });
   if (mode === "review") return reviewList();
-  const ex = (g) => extraQ.filter((x) => x.genre === g).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg }));
+  const ex = (g) => extraQ.filter((x) => x.genre === g && !x.off).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg, tl: x.tl, pin: x.pin }));
   // 自分たちの問題(アプリで登録・編集したもの)が十分あれば、それだけを出す。足りないときだけ、見本の問題で補う
   const enough = (arr, n) => arr.length >= n;
   if (mode === "chu") return enough(ex("chu"), MODES.chu.len) ? ex("chu") : BASE.chu.concat(ex("chu"));
@@ -987,6 +987,11 @@ function buildRunQuestions(mode) { // 問題が足りないときは、もう一
     out = out.concat(b);
   }
   out = out.slice(0, n);
+  { // 「必ず出す」問題が入っていなければ、ふつうの問題と入れかえて入れる
+    const miss = pool.filter((x) => x.pin && !out.some((o) => o.id === x.id));
+    const slots = shuffle(out.map((o, i) => i).filter((i) => !out[i].pin && !(mode === "jo" && i === n - 1)));
+    miss.slice(0, slots.length).forEach((p, k) => { out[slots[k]] = p; });
+  }
   if (mode === "jo" && n > 0) out[n - 1] = JO_FINAL; // 上級の最後は、いつもこの問題
   return out;
 }
@@ -1874,9 +1879,10 @@ function render() {
     else if (view === "qadd") renderQAdd(root);
     else if (view === "zukan") renderZukan(root);
     else if (view === "stats") renderStats(root);
+    else if (view === "notice") renderNotice(root);
     else if (view === "name") renderName(root);
     else renderHome(root);
-    if (view === "settings" || view === "qadd" || view === "zukan" || view === "stats") { // 縦に長い画面は、上にもホームに戻るボタンを置く
+    if (view === "settings" || view === "qadd" || view === "zukan" || view === "stats" || view === "notice") { // 縦に長い画面は、上にもホームに戻るボタンを置く
       const top = el("button", "btn sub top-home", "◀ ホームに戻る");
       top.type = "button";
       top.onclick = () => { view = "home"; render(); window.scrollTo({ top: 0 }); };
@@ -1899,6 +1905,7 @@ function renderHome(root) {
   top.appendChild(gear);
   if (STANDALONE && db && !acctId()) { const lg = el("button", "btn sub small", "ログイン"); lg.type = "button"; lg.onclick = () => { view = "settings"; render(); }; top.appendChild(lg); }
   root.appendChild(top);
+  { const nb = noticeBanner(); if (nb) root.appendChild(nb); }
 
   const b = el("div", "box stack");
   b.appendChild(el("h2", null, "ダンジョンに挑戦"));
@@ -2175,10 +2182,11 @@ function talkAdvance() {
 // ---- 制限時間(レート戦のみ。1問30秒。時間切れは不正解と同じ) ----
 const TIME_LIMIT = 30;
 function timedNow() { return !!(G && G.mode === "rate" && G.state === "ask" && G.opts && !G.aed && !G.talk && !G.test); }
+function qLimit() { const q = G && G.qs ? curQ() : null; return ((q && q.tl > 0) ? q.tl : TIME_LIMIT) * 1000; } // 問題ごとの制限時間(GMが設定)。なければ30秒
 function tmKey() { return G.qi + "/" + (G.ms || 0) + "/" + G.qs.length; }
 function makeTimerBar() {
   const k = tmKey();
-  if (!G.tm || G.tm.key !== k) G.tm = { key: k, left: TIME_LIMIT * 1000 };
+  if (!G.tm || G.tm.key !== k) { const lim = qLimit(); G.tm = { key: k, left: lim, max: lim }; }
   const d = el("div", "tmr"), sp = el("span", null, ""), tb = el("div", "tb"), fi = document.createElement("i");
   tb.appendChild(fi); d.append(tb, sp); UI.tm = { d: d, sp: sp, fi: fi };
   tmPaint();
@@ -2188,7 +2196,7 @@ function tmPaint() {
   if (!UI.tm || !G || !G.tm) return;
   const sec = Math.max(0, Math.ceil(G.tm.left / 1000));
   UI.tm.sp.textContent = "残り" + sec + "秒";
-  UI.tm.fi.style.width = Math.max(0, Math.min(100, G.tm.left / (TIME_LIMIT * 1000) * 100)) + "%";
+  UI.tm.fi.style.width = Math.max(0, Math.min(100, G.tm.left / (G.tm.max || TIME_LIMIT * 1000) * 100)) + "%";
   UI.tm.d.classList.toggle("warn", sec <= 5);
 }
 let tmLast = Date.now();
@@ -2408,11 +2416,57 @@ function startMode(mode) {
   window.scrollTo({ top: 0 });
 }
 // ================= 答えの記録(GMの分析用。自分の行だけ書く) =================
+let noticeDoc = null; // GMが書いた、みんなへのお知らせ(config/notice)
+function noticeBanner() {
+  if (!noticeDoc || !noticeDoc.on || !noticeDoc.text) return null;
+  let seenAt = ""; try { seenAt = localStorage.getItem("quiz-notice") || ""; } catch (e) {}
+  if (seenAt === String(noticeDoc.at)) return null;
+  const d = el("div", "box stack");
+  d.style.cssText = "border:2px solid #f5c542";
+  d.appendChild(el("h2", null, "📢 お知らせ"));
+  const p = el("p", null, String(noticeDoc.text)); p.style.whiteSpace = "pre-wrap";
+  const x = el("button", "btn sub small", "閉じる"); x.type = "button";
+  x.onclick = () => { try { localStorage.setItem("quiz-notice", String(noticeDoc.at)); } catch (e) {} render(); };
+  d.append(p, x);
+  return d;
+}
+function renderNotice(root) {
+  const b = el("div", "box stack");
+  b.appendChild(el("h2", null, "お知らせを編集(GM)"));
+  b.appendChild(el("p", "note", "ホーム画面の上に、みんなへのお知らせを出します。内容を変えて保存すると、いちど閉じた人にも、もう一度出ます。"));
+  const ta = document.createElement("textarea");
+  ta.rows = 5; ta.maxLength = 200; ta.value = (noticeDoc && noticeDoc.text) || ""; ta.setAttribute("aria-label", "お知らせの文章");
+  ta.style.cssText = "font:inherit;font-size:1rem;width:100%;box-sizing:border-box";
+  const cl = el("label", null, "お知らせを表示する"); const ck = document.createElement("input"); ck.type = "checkbox"; ck.checked = !noticeDoc || noticeDoc.on !== false; cl.prepend(ck);
+  const st = el("p", "note"); st.hidden = true;
+  const sv = el("button", "btn", "保存する"); sv.type = "button";
+  sv.onclick = async () => {
+    sv.disabled = true;
+    try { await db.doc("config/notice").set({ text: ta.value.trim(), on: ck.checked, at: Date.now() }); st.textContent = "保存しました。"; st.className = "ok-msg"; }
+    catch (e) { st.textContent = "保存できませんでした。時間をおいて、もう一度試してください。"; st.className = "err"; }
+    st.hidden = false; sv.disabled = false;
+  };
+  const back = el("button", "btn sub", "設定に戻る"); back.type = "button"; back.onclick = () => { view = "settings"; render(); };
+  b.append(ta, cl, sv, st, back);
+  root.appendChild(b);
+}
 let statBuf = {}, statCnt = 0;
-function recStat(qd, ok) {
+let statAgg = null; // GMだけ: 問題ごとの集計 {id: {n, c, t, tn}}
+function loadStatAgg(done) {
+  if (!STANDALONE || !db || !isAdmin()) return;
+  flushStats();
+  db.collection("stats").limit(500).get().then((snap) => {
+    const m = {};
+    snap.docs.forEach((d) => { const q = d.data().q || {}; Object.keys(q).forEach((id) => { const r = q[id], a = m[id] || (m[id] = { n: 0, c: 0, t: 0, tn: 0 }); a.n += r.n || 0; a.c += r.c || 0; a.t += r.t || 0; a.tn += r.tn || 0; }); });
+    statAgg = m; if (done) done();
+  }).catch(() => {});
+}
+const avgSec = (o) => (o && o.tn) ? (o.t / o.tn / 1000).toFixed(1) + "秒" : "-";
+function recStat(qd, ok, ms) {
   if (!STANDALONE || !canSave() || !qd || !qd.id) return;
-  const s = statBuf[qd.id] || (statBuf[qd.id] = { n: 0, c: 0 });
+  const s = statBuf[qd.id] || (statBuf[qd.id] = { n: 0, c: 0, t: 0, tn: 0 });
   s.n++; if (ok) s.c++;
+  if (ms >= 0) { s.t += Math.min(300000, Math.round(ms)); s.tn++; }
   if (++statCnt >= 5) flushStats();
 }
 function flushStats() {
@@ -2420,7 +2474,7 @@ function flushStats() {
   const buf = statBuf; statBuf = {}; statCnt = 0;
   try {
     const inc = firebase.firestore.FieldValue.increment, q = {};
-    Object.keys(buf).forEach((id) => { q[id] = { n: inc(buf[id].n), c: inc(buf[id].c) }; });
+    Object.keys(buf).forEach((id) => { q[id] = { n: inc(buf[id].n), c: inc(buf[id].c), t: inc(buf[id].t), tn: inc(buf[id].tn) }; });
     db.doc("stats/" + uid).set({ name: myName, updatedAt: Date.now(), q: q }, { merge: true }).catch(() => {});
   } catch (e) {}
 }
@@ -2434,7 +2488,7 @@ function pick(k) {
     G.ms = (G.ms || 0) + 1; G.opts = null; G.picked = -1; G.state = "ask"; G.appear = false; render(); return;
   }
   if (G.aed) { G.picked = k; G.lastOk = ok; G.state = "fb"; G.played = false; G.flash = false; render(); return; } // 蘇生問題は、成績に数えない
-  { const nw = Date.now(); const ms = (G.mode === "rate" && G.tm && G.tm.key === tmKey()) ? (TIME_LIMIT * 1000 - G.tm.left) : Math.min(60000, nw - (G.qT0 || nw)); G.tSum = (G.tSum || 0) + Math.max(0, ms); G.tN = (G.tN || 0) + 1; } // 平均解答時間(蘇生問題は数えない)
+  { const nw = Date.now(); const ms = (G.mode === "rate" && G.tm && G.tm.key === tmKey()) ? ((G.tm.max || TIME_LIMIT * 1000) - G.tm.left) : Math.min(60000, nw - (G.qT0 || nw)); G.lastMs = Math.max(0, ms); G.tSum = (G.tSum || 0) + Math.max(0, ms); G.tN = (G.tN || 0) + 1; } // 平均解答時間(蘇生問題は数えない)
   G.picked = k; G.lastOk = ok; G.timeout = k < 0; G.state = "fb"; G.played = false; G.flash = false;
   if (!ok) {
     const g = G;
@@ -2442,7 +2496,7 @@ function pick(k) {
   }
   if (G.mode !== "tutorial") {
     G.answered++;
-    if (!G.test && G.mode !== "review") recStat(curQ(), ok); // 裏ボス戦の専用問題も、分析に数える
+    if (!G.test && G.mode !== "review") recStat(curQ(), ok, G.lastMs); // 裏ボス戦の専用問題も、分析に数える
     if ((G.en !== 9 || G.cboss) && !G.test) { const mid = curQ().id; if (mid) { if (G.mode === "review") { if (ok && missed.delete(mid)) saveMissed(); } else if (!ok && !missed.has(mid)) { missed.add(mid); saveMissed(); } } } // 間違えたら復習リストへ。復習で正解したら、リストから消える // 裏ボス戦・蘇生問題・チュートリアルは、分析に数えない
     if (G.en === 9 && !G.cboss) { G.nodAnswered++; if (ok) G.nodCorrect++; } // 裏ボス戦の正解は、レートに数えない
     if (ok) { G.correct++; G.streak++; G.maxStreak = Math.max(G.maxStreak, G.streak); if (isBossEn(G.en) && G.bossHp > 0) G.bossHp--; if (!(isBossEn(G.en) && G.bossHp > 0)) G.kills++; }
@@ -2523,13 +2577,13 @@ function corridorList() { // まだ出ていない問題を、中級 → 上級 
   const asked = new Set(G.qs.map((x) => x.id).filter(Boolean));
   let out = [];
   ["chu", "jo", "rate"].forEach((g) => {
-    const arr = shuffle(extraQ.filter((x) => x.genre === g && !x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg })));
+    const arr = shuffle(extraQ.filter((x) => x.genre === g && !x.off && !x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg, tl: x.tl, pin: x.pin })));
     if (g === "jo" && !asked.has(JO_FINAL.id)) arr.push(JO_FINAL);
     out = out.concat(arr);
   });
   // 「無限回廊の後半」用の問題は、いちばん最後にまとめて出す
-  out = out.concat(shuffle(extraQ.filter((x) => x.late && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg }))));
-  return out;
+  out = out.concat(shuffle(extraQ.filter((x) => x.late && !x.off && !asked.has(x.id)).map((x) => ({ id: x.id, q: x.q, c: x.c, a: x.a, e: x.e, dmg: x.dmg, tl: x.tl, pin: x.pin }))));
+  return out.filter((x) => x.pin).concat(out.filter((x) => !x.pin)); // 「必ず出す」問題は、先に出す
 }
 function enterCorridor() {
   const list = corridorList();
@@ -2736,6 +2790,10 @@ function renderSettings(root) {
     sb.type = "button";
     sb.onclick = () => { view = "stats"; render(); };
     b.appendChild(sb);
+    const nbt = el("button", "btn sub", "お知らせを編集(GM)");
+    nbt.type = "button";
+    nbt.onclick = () => { view = "notice"; render(); };
+    b.appendChild(nbt);
   }
   b.appendChild(back);
   root.appendChild(b);
@@ -2753,13 +2811,14 @@ function barRow(label, c, n, sub) { // 見出し・正答率・棒グラフ(色�
   row.append(top, mt, el("div", "detail", "正解 " + c + " / 回答 " + n + (sub ? "  ・  " + sub : "")));
   return row;
 }
-function qCard(rank, qd, id, c, n) { // 問題のカード(タップで全文)
+function qCard(rank, qd, id, c, n, tm) { // 問題のカード(タップで全文)
   const pc = pctOf(c, n);
   const card = el("div", "st-q");
   const big = el("div", "st-big " + stCls(pc)); big.append(el("span", null, pc + "%"), el("small", null, c + "/" + n));
+  const tmTxt = (tm && tm.tn) ? "  ・  平均 " + avgSec(tm) : "";
   const body = el("div", "st-qbody");
   body.appendChild(el("div", "st-qtext", (rank ? rank + ". " : "") + (qd ? qd.q : id)));
-  body.appendChild(el("div", "detail", (qd ? (CAT_NAME[qd.cat] || "系統なし") + "  ・  正解: " + qd.c[qd.a] : "")));
+  body.appendChild(el("div", "detail", (qd ? (CAT_NAME[qd.cat] || "系統なし") + "  ・  正解: " + qd.c[qd.a] + tmTxt : "")));
   card.append(big, body);
   card.onclick = () => card.classList.toggle("open");
   return card;
@@ -2783,27 +2842,27 @@ function renderStats(root) {
   qmap.set("joFinal", { id: "joFinal", q: "(上級の最終問題)胸骨圧迫のA・B・C", c: ["A 5～6cm / B 100～120回 / C 片手"], a: 0, cat: "cpr" });
     body.replaceChildren();
     if (!docs.length) { body.appendChild(el("p", "note", "まだ記録がありません。みんなが遊ぶと、ここに集計されます。")); b.appendChild(back); return; }
-    const tq = {}, tc = {}, pl = []; let totN = 0, totC = 0;
+    const tq = {}, tc = {}, pl = []; let totN = 0, totC = 0, totT = 0, totTN = 0;
     docs.forEach((d) => {
-      const pc = {}; let pn = 0, pcc = 0;
+      const pc = {}; let pn = 0, pcc = 0, pt = 0, ptn = 0;
       Object.keys(d.q).forEach((id) => {
         const r = d.q[id], n = r.n || 0, c = r.c || 0, qd = qmap.get(id);
         if (!n) return;
-        const t = tq[id] || (tq[id] = { n: 0, c: 0 }); t.n += n; t.c += c;
+        const t = tq[id] || (tq[id] = { n: 0, c: 0, t: 0, tn: 0 }); t.n += n; t.c += c; t.t += r.t || 0; t.tn += r.tn || 0; pt += r.t || 0; ptn += r.tn || 0;
         const ck = qd && qd.cat ? qd.cat : "none";
         const a = tc[ck] || (tc[ck] = { n: 0, c: 0 }); a.n += n; a.c += c;
         const p = pc[ck] || (pc[ck] = { n: 0, c: 0 }); p.n += n; p.c += c;
         pn += n; pcc += c;
       });
-      totN += pn; totC += pcc;
-      pl.push({ name: d.name, id: d.id, pc: pc, n: pn, c: pcc, q: d.q });
+      totN += pn; totC += pcc; totT += pt; totTN += ptn;
+      pl.push({ name: d.name, id: d.id, pc: pc, n: pn, c: pcc, q: d.q, tm: { t: pt, tn: ptn } });
     });
     pl.sort((x, y) => y.n - x.n);
     const catName = (k) => CAT_NAME[k] || "系統なし";
     // 上の集計(3つの数字)
     const tiles = el("div", "st-tiles");
     const tile = (k, v, cls) => { const t = el("div", "st-tile"); t.append(el("small", null, k), el("b", cls || "", v)); return t; };
-    tiles.append(tile("遊んだ人", docs.length + "人"), tile("回答数", totN + "問"), tile("全体の正答率", pctOf(totC, totN) + "%", stCls(pctOf(totC, totN))));
+    tiles.append(tile("遊んだ人", docs.length + "人"), tile("回答数", totN + "問"), tile("全体の正答率", pctOf(totC, totN) + "%", stCls(pctOf(totC, totN))), tile("平均解答時間", avgSec({ t: totT, tn: totTN })));
     body.appendChild(tiles);
     // タブ
     const tabs = el("div", "st-tabs");
@@ -2829,14 +2888,14 @@ function renderStats(root) {
           const low = Object.keys(tq).filter((id) => tq[id].n >= minN).sort((x, y) => pctOf(tq[x].c, tq[x].n) - pctOf(tq[y].c, tq[y].n) || tq[y].n - tq[x].n).slice(0, 30);
           if (!low.length) list.appendChild(el("p", "note", "この条件に合う問題は、まだありません。"));
           else list.appendChild(el("p", "note", "正答率が低い順に、最大30問。タップすると、問題文が全部見られます。"));
-          low.forEach((id, k) => list.appendChild(qCard(k + 1, qmap.get(id), id, tq[id].c, tq[id].n)));
+          low.forEach((id, k) => list.appendChild(qCard(k + 1, qmap.get(id), id, tq[id].c, tq[id].n, tq[id])));
         };
         sel.onchange = () => { minN = +sel.value; show(); };
         content.append(f, list); show();
       } else {
         const sel = document.createElement("select");
         sel.setAttribute("aria-label", "プレイヤーを選ぶ");
-        pl.forEach((p, k) => { const o = document.createElement("option"); o.value = String(k); o.textContent = p.name + "(" + p.n + "問・" + pctOf(p.c, p.n) + "%)"; sel.appendChild(o); });
+        pl.forEach((p, k) => { const o = document.createElement("option"); o.value = String(k); o.textContent = p.name + "(" + p.n + "問・" + pctOf(p.c, p.n) + "%・平均" + avgSec(p.tm) + ")"; sel.appendChild(o); });
         const out = el("div", "stack");
         const show = () => {
           out.replaceChildren();
@@ -2845,7 +2904,7 @@ function renderStats(root) {
           Object.keys(p.pc).sort((x, y) => pctOf(p.pc[x].c, p.pc[x].n) - pctOf(p.pc[y].c, p.pc[y].n) || p.pc[y].n - p.pc[x].n).forEach((k) => out.appendChild(barRow(catName(k), p.pc[k].c, p.pc[k].n)));
           const miss = Object.keys(p.q).filter((id) => (p.q[id].n || 0) > (p.q[id].c || 0)).sort((x, y) => ((p.q[y].n - p.q[y].c) - (p.q[x].n - p.q[x].c))).slice(0, 10);
           if (miss.length) out.appendChild(el("h3", "st-h", "よく間違えた問題"));
-          miss.forEach((id, k) => out.appendChild(qCard(k + 1, qmap.get(id), id, p.q[id].c, p.q[id].n)));
+          miss.forEach((id, k) => out.appendChild(qCard(k + 1, qmap.get(id), id, p.q[id].c, p.q[id].n, p.q[id])));
         };
         sel.onchange = show;
         content.append(sel, out); show();
@@ -3015,6 +3074,16 @@ function renderQAdd(root) {
   [1, 2, 3].forEach((n) => { const o = document.createElement("option"); o.value = String(n); o.textContent = n + (n === 1 ? "(ふつう)" : ""); dd.appendChild(o); });
   fd.append(ld, dd);
   const dmgVal = () => { const n = Number(dd.value); return (n >= 1 && n <= 3) ? n : 1; };
+  const mkSel = (id, label, opts) => {
+    const f = el("div", "field"), l = el("label", null, label); l.htmlFor = id;
+    const x = document.createElement("select"); x.id = id;
+    opts.forEach((o) => { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; x.appendChild(e); });
+    f.append(l, x); return [f, x];
+  };
+  const tlr = mkSel("q-tl", "制限時間(レート戦のみ)", [["0", "ふつう(30秒)"], ["15", "15秒"], ["20", "20秒"], ["45", "45秒"], ["60", "60秒"], ["90", "90秒"]]);
+  const psr = mkSel("q-ps", "出題のしかた", [["n", "ふつう"], ["pin", "必ず出す(挑戦のたびに入れる)"], ["off", "出さない(一時停止・消さずに残す)"]]);
+  const tsel = tlr[1], psel = psr[1];
+  const extraVals = () => ({ dmg: dmgVal(), tl: Number(tsel.value) || 0, pin: psel.value === "pin", off: psel.value === "off" });
   const st = el("p", "note");
   st.hidden = true;
   let editing = null;
@@ -3025,7 +3094,7 @@ function renderQAdd(root) {
   cancel.type = "button"; cancel.hidden = true;
   const resetForm = () => {
     editing = null; h2.textContent = "問題を追加する"; go.textContent = "▶ 追加する"; cancel.hidden = true;
-    ta.value = ""; csel.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "1";
+    ta.value = ""; csel.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "1"; tsel.value = "0"; psel.value = "n";
     const r0 = form.querySelector("#q-ans0"); if (r0) r0.checked = true;
   };
   cancel.onclick = () => { resetForm(); st.hidden = true; };
@@ -3033,11 +3102,11 @@ function renderQAdd(root) {
     editing = it; sel.value = it.genre; csel.value = it.cat || ""; ta.value = it.q;
     ins.forEach((i, k) => { i.value = it.c[k]; });
     const rr = form.querySelector("#q-ans" + it.a); if (rr) rr.checked = true;
-    ee.value = it.e || ""; dd.value = (it.dmg >= 2 && it.dmg <= 3) ? String(it.dmg) : "1";
+    ee.value = it.e || ""; dd.value = (it.dmg >= 2 && it.dmg <= 3) ? String(it.dmg) : "1"; tsel.value = [15, 20, 45, 60, 90].indexOf(it.tl) >= 0 ? String(it.tl) : "0"; psel.value = it.off ? "off" : it.pin ? "pin" : "n";
     h2.textContent = "問題を編集する"; go.textContent = "▶ 保存する"; cancel.hidden = false; st.hidden = true;
     h2.scrollIntoView({ block: "start", behavior: "smooth" });
   };
-  form.append(fs, fcat, fq, fc, fe, fd, st, go, cancel);
+  form.append(fs, fcat, fq, fc, fe, fd, tlr[0], psr[0], st, go, cancel);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const say = (t, bad) => { st.textContent = t; st.className = bad ? "err" : "ok-msg"; st.hidden = false; };
@@ -3052,13 +3121,13 @@ function renderQAdd(root) {
     go.disabled = true;
     try {
       if (editing) {
-        await qSet(editing.id, { genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), dmg: dmgVal() });
+        await qSet(editing.id, { genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), ...extraVals() });
         resetForm();
         say("保存しました。次の挑戦から反映されます。", false);
       } else {
-        await db.collection("questions").add({ genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), dmg: dmgVal(), by: uid, at: Date.now() });
+        await db.collection("questions").add({ genre: sel.value, cat: csel.value, q: q, c: cs, a: a, e: ee.value.trim(), ...extraVals(), by: uid, at: Date.now() });
         say("追加しました。次の挑戦から出題されます。", false);
-        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "1";
+        ta.value = ""; ins.forEach((i) => { i.value = ""; }); ee.value = ""; dd.value = "1"; tsel.value = "0"; psel.value = "n";
       }
     } catch (x) { say((editing ? "保存" : "追加") + "に失敗しました。時間をおいて、もう一度試してください。", true); }
     go.disabled = !qAddAllowed();
@@ -3083,6 +3152,7 @@ function renderQAdd(root) {
   b.appendChild(back);
   root.appendChild(b);
   renderQList();
+  if (STANDALONE && isAdmin()) loadStatAgg(renderQList);
 }
 
 function qCatCounts() {
@@ -3119,6 +3189,15 @@ function renderQList() {
     info.appendChild(el("div", "tagst", MODES[it.genre].name + " / " + (CAT_NAME[it.cat] || "系統なし")));
     info.appendChild(el("div", null, it.q));
     info.appendChild(el("div", "detail", "正解: " + it.c[it.a]));
+    { // 設定と、みんなの正答率・平均解答時間(GMだけ)
+      const parts = [];
+      if (it.off) parts.push("⛔ 出題停止中"); if (it.pin) parts.push("📌 必ず出す"); if (it.tl) parts.push("⏱ " + it.tl + "秒"); if (it.dmg > 1) parts.push("💥 ダメージ" + it.dmg);
+      const sa = statAgg && statAgg[it.id];
+      if (sa && sa.n) parts.push("正答率 " + pctOf(sa.c, sa.n) + "%(" + sa.c + "/" + sa.n + ")・平均 " + avgSec(sa));
+      else if (statAgg) parts.push("まだ回答なし");
+      if (parts.length) info.appendChild(el("div", "detail", parts.join("  "))); 
+      if (it.off) row.style.opacity = ".6";
+    }
     const ed = el("button", "btn small", "編集");
     ed.type = "button"; ed.disabled = !qAddAllowed();
     ed.onclick = () => { if (qEditHook) qEditHook(it); };
@@ -3649,6 +3728,7 @@ async function init() {
     },
     () => { boardState = "error"; renderBoard(); }
   );
+  db.doc("config/notice").onSnapshot((s) => { noticeDoc = s.exists ? s.data() : null; if (!G && (view === "home")) render(); }, () => {});
   db.collection("enemies").limit(100).onSnapshot(
     (snap) => {
       const m = {}; snap.docs.forEach((d) => { m[d.id] = d.data(); }); enemyInfo = m;
