@@ -1879,10 +1879,9 @@ function render() {
     else if (view === "qadd") renderQAdd(root);
     else if (view === "zukan") renderZukan(root);
     else if (view === "stats") renderStats(root);
-    else if (view === "notice") renderNotice(root);
     else if (view === "name") renderName(root);
     else renderHome(root);
-    if (view === "settings" || view === "qadd" || view === "zukan" || view === "stats" || view === "notice") { // 縦に長い画面は、上にもホームに戻るボタンを置く
+    if (view === "settings" || view === "qadd" || view === "zukan" || view === "stats") { // 縦に長い画面は、上にもホームに戻るボタンを置く
       const top = el("button", "btn sub top-home", "◀ ホームに戻る");
       top.type = "button";
       top.onclick = () => { view = "home"; render(); window.scrollTo({ top: 0 }); };
@@ -1905,7 +1904,6 @@ function renderHome(root) {
   top.appendChild(gear);
   if (STANDALONE && db && !acctId()) { const lg = el("button", "btn sub small", "ログイン"); lg.type = "button"; lg.onclick = () => { view = "settings"; render(); }; top.appendChild(lg); }
   root.appendChild(top);
-  { const nb = noticeBanner(); if (nb) root.appendChild(nb); }
 
   const b = el("div", "box stack");
   b.appendChild(el("h2", null, "ダンジョンに挑戦"));
@@ -2416,40 +2414,6 @@ function startMode(mode) {
   window.scrollTo({ top: 0 });
 }
 // ================= 答えの記録(GMの分析用。自分の行だけ書く) =================
-let noticeDoc = null; // GMが書いた、みんなへのお知らせ(config/notice)
-function noticeBanner() {
-  if (!noticeDoc || !noticeDoc.on || !noticeDoc.text) return null;
-  let seenAt = ""; try { seenAt = localStorage.getItem("quiz-notice") || ""; } catch (e) {}
-  if (seenAt === String(noticeDoc.at)) return null;
-  const d = el("div", "box stack");
-  d.style.cssText = "border:2px solid #f5c542";
-  d.appendChild(el("h2", null, "📢 お知らせ"));
-  const p = el("p", null, String(noticeDoc.text)); p.style.whiteSpace = "pre-wrap";
-  const x = el("button", "btn sub small", "閉じる"); x.type = "button";
-  x.onclick = () => { try { localStorage.setItem("quiz-notice", String(noticeDoc.at)); } catch (e) {} render(); };
-  d.append(p, x);
-  return d;
-}
-function renderNotice(root) {
-  const b = el("div", "box stack");
-  b.appendChild(el("h2", null, "お知らせを編集(GM)"));
-  b.appendChild(el("p", "note", "ホーム画面の上に、みんなへのお知らせを出します。内容を変えて保存すると、いちど閉じた人にも、もう一度出ます。"));
-  const ta = document.createElement("textarea");
-  ta.rows = 5; ta.maxLength = 200; ta.value = (noticeDoc && noticeDoc.text) || ""; ta.setAttribute("aria-label", "お知らせの文章");
-  ta.style.cssText = "font:inherit;font-size:1rem;width:100%;box-sizing:border-box";
-  const cl = el("label", null, "お知らせを表示する"); const ck = document.createElement("input"); ck.type = "checkbox"; ck.checked = !noticeDoc || noticeDoc.on !== false; cl.prepend(ck);
-  const st = el("p", "note"); st.hidden = true;
-  const sv = el("button", "btn", "保存する"); sv.type = "button";
-  sv.onclick = async () => {
-    sv.disabled = true;
-    try { await db.doc("config/notice").set({ text: ta.value.trim(), on: ck.checked, at: Date.now() }); st.textContent = "保存しました。"; st.className = "ok-msg"; }
-    catch (e) { st.textContent = "保存できませんでした。時間をおいて、もう一度試してください。"; st.className = "err"; }
-    st.hidden = false; sv.disabled = false;
-  };
-  const back = el("button", "btn sub", "設定に戻る"); back.type = "button"; back.onclick = () => { view = "settings"; render(); };
-  b.append(ta, cl, sv, st, back);
-  root.appendChild(b);
-}
 let statBuf = {}, statCnt = 0;
 let statAgg = null; // GMだけ: 問題ごとの集計 {id: {n, c, t, tn}}
 function loadStatAgg(done) {
@@ -2790,10 +2754,6 @@ function renderSettings(root) {
     sb.type = "button";
     sb.onclick = () => { view = "stats"; render(); };
     b.appendChild(sb);
-    const nbt = el("button", "btn sub", "お知らせを編集(GM)");
-    nbt.type = "button";
-    nbt.onclick = () => { view = "notice"; render(); };
-    b.appendChild(nbt);
   }
   b.appendChild(back);
   root.appendChild(b);
@@ -3728,7 +3688,6 @@ async function init() {
     },
     () => { boardState = "error"; renderBoard(); }
   );
-  db.doc("config/notice").onSnapshot((s) => { noticeDoc = s.exists ? s.data() : null; if (!G && (view === "home")) render(); }, () => {});
   db.collection("enemies").limit(100).onSnapshot(
     (snap) => {
       const m = {}; snap.docs.forEach((d) => { m[d.id] = d.data(); }); enemyInfo = m;
