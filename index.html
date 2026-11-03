@@ -2489,7 +2489,6 @@ function next() {
     return;
   }
   if (G.aed) { aedNext(); return; }
-  if (G.fixedEn != null) G.hp = maxHp(G.mode); // 図鑑からのテスト対戦: 体力はへらない
   if (G.hp <= 0) { if (G.mode === "rate" && !G.aedDone) { startAed(); return; } endRun(false); return; }
   G.qi++;
   const B = MODES[G.mode].boss;
@@ -2909,7 +2908,7 @@ function zkList() { // 図鑑の並び: ふつうの敵(shf-) → stf- の敵 �
   ENEMIES.forEach((E, i) => { if (E.hidden) return; if (STF_IDX.indexOf(i) >= 0) stf.push(i); else if (E.tag) sp.push(i); else normal.push(i); });
   return normal.map((i, k) => ({ i: i, code: "shf-" + pad(k + 1) })).concat(stf.map((i, k) => ({ i: i, code: "stf-" + pad(k + 1) })), sp.map((i) => ({ i: i, code: "" })));
 }
-// 図鑑から、その敵と戦ってためす(GMだけ。記録されない。体力はへらない。ボスは倒しても、また出てくる)
+// 図鑑から、その敵と戦ってためす(GMだけ。記録されない。体力はへる(0になると負け・蘇生なし)。ボスは倒しても、また出てくる)
 function testBattle(i) {
   const keep = prog.jo; prog.jo = true;
   startMode("rate");
@@ -2917,7 +2916,7 @@ function testBattle(i) {
   if (!G) return;
   const ci = CBOSS.findIndex((c) => c.en === i);
   const bh = ci >= 0 ? CBOSS[ci].hp : i === 12 ? 3 : i === 19 ? 5 : i === 24 ? 3 : 5;
-  G.test = true; G.fixedEn = i; G.evDone = true; G.evAt = -1; G.nodDone = true; G.rareDone = true;
+  G.test = true; G.fixedEn = i; G.aedDone = true; G.evDone = true; G.evAt = -1; G.nodDone = true; G.rareDone = true;
   G.en = i; G.appear = true; G.cbN = ci >= 0 ? ci + 1 : 0; G.cboss = ci >= 0;
   if (isBossEn(i)) { G.bossHp = bh; G.bossMax = bh; }
   useEnQ();
