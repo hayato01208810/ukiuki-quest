@@ -467,7 +467,7 @@ const MODES = {
   chu: { name: "中級", len: 8, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 43], next: "jo", desc: "全8問 / 最後の3問はボス戦 / クリアで上級が解放", boss: { en: 12, hp: 3 } },
   jo: { name: "上級", len: 8, pal: 3, enemies: [1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: "rate", desc: "全8問 / 最後の3問はラスボス戦 / クリアでレート戦が解放", boss: { en: 24, hp: 3 } },
   rate: { name: "レート戦", len: 50, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: { en: 19, hp: 5, until: true }, desc: "全50問 / 1問30秒以内に答える / 正解1問=110レート / 1回の最高記録でランキング" },
-  ta: { name: "ボスラッシュ", len: 200, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: null, desc: "持ち時間5分 / ボスを順番に15問ずつ(体力15) / 全問題からランダム出題 / ミス1問で-30秒 / 1問正解で100レート(専用ランキング)" },
+  ta: { name: "ボスラッシュ", len: 200, pal: 4, enemies: [0, 1, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38, 13, 14, 15, 16, 17, 18, 21, 22, 23, 25, 26, 32, 33, 34, 43, 44, 45, 46, 47, 48, 49, 50], next: null, boss: null, desc: "持ち時間5分 / ボスを順番に(体力15)、全員たおしたらまた最初から・上限なし / 全問題からランダム出題 / ミス1問で-30秒 / 1問正解で100レート(専用ランキング)" },
   review: { name: "復習", len: 10, pal: 2, enemies: [0, 2, 3, 4, 5, 6, 7, 27, 35, 36, 37, 38], next: null, desc: "" } // 間違えた問題だけを出す(ホームの別ボタン。ランキング・分析の対象外)
 }; // enemies: そのジャンルで出る敵(ENEMIES の番号)。毎問ランダム
 // 敵の画像(ページと同じ場所に置いたファイル)。h は場面の高さに対する大きさ(%)、ar は画像の 幅/高さ
@@ -2406,7 +2406,7 @@ function renderEnd(root) {
     add("今回のレート", (G.taRating || 0).toLocaleString("en-US") + "(1問正解で" + TA_PER_CORRECT + ")");
     add("ミス", (G.taMiss || 0) + "問(タイム -" + (G.taMiss || 0) * TA_PEN / 1000 + "秒)");
     add("残り時間", fmtMs(G.taLeft || 0));
-    add("たおしたボス", Math.min(RUSH.length, (G.ri || 0) + (G.bossHp <= 0 ? 1 : 0)) + " / " + RUSH.length + "体");
+    add("たおしたボス", ((G.rkill || 0) + (G.bossHp <= 0 ? 1 : 0)) + "体" + (G.lap ? "(" + G.lap + "周)" : ""));
     if (G.taTotal != null) add("自己ベストのレート", G.taTotal.toLocaleString("en-US") + (G.taNewBest ? "(更新!)" : ""));
   }
   add("今回の正答率", G.answered ? Math.round(G.correct / G.answered * 100) + "%" : "-");
@@ -2538,6 +2538,7 @@ function next() {
   const B = MODES[G.mode].boss;
   if (G.fixedEn != null && G.qi >= G.qs.length) extendQs(20);
   if (B && B.until && G.bossStarted && G.bossHp > 0 && G.qi >= G.qs.length) extendQs(1); // ラスボスは、倒すまで問題が続く
+  if (G.mode === "ta" && G.qi >= G.qs.length) extendQs(50); // ボスラッシュ: 上限なし。問題が尽きたら足す(終わりは時間切れかHP0)
   if (G.qi >= G.qs.length) { // レート戦のラスボスをたおしたら、まだ出ていない問題を、すべて出す「無限回廊」へ
     if (!(G.mode === "rate" && !G.corridor && enterCorridor())) { G.corrDone = !!G.corridor; endRun(true); return; }
   }
@@ -2585,8 +2586,8 @@ function next() {
   }
   if (G.mode === "ta") { // ボスラッシュ: ボスを倒したら、つぎのボスへ(登場のセリフはなし)
     if (G.bossHp <= 0) {
-      G.ri = (G.ri || 0) + 1;
-      if (G.ri >= RUSH.length) { G.rushClear = true; endRun(true); return; }
+      G.ri = (G.ri || 0) + 1; G.rkill = (G.rkill || 0) + 1;
+      if (G.ri >= RUSH.length) { G.ri = 0; G.lap = (G.lap || 0) + 1; } // 全員たおしたら、また最初のボスから(時間切れまで周回・上限なし)
       G.en = RUSH[G.ri]; G.bossHp = RUSH_HP; G.bossMax = RUSH_HP; G.appear = true; G.cboss = G.en === 9; G.talk = null;
     } else { G.en = RUSH[G.ri || 0]; G.appear = false; G.cboss = G.en === 9; }
     G.rareDone = true;
