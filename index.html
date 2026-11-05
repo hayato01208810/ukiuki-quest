@@ -342,6 +342,18 @@ html.playing #play { flex: 1 1 auto; min-height: 0; gap: 8px; }
 /* ===== オープニング ===== */
 #op { position: fixed; inset: 0; z-index: 1000; background: #000; overflow: hidden; font-family: var(--font-dot); color: #fff; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 #op[hidden] { display: none; }
+#gmmsg { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(2, 6, 20, .78); animation: gm-in .35s ease-out; }
+#gmmsg[hidden] { display: none; }
+#gmmsg .gm-box { width: min(100%, 440px); max-height: 88vh; overflow-y: auto; background: var(--box); border: 4px solid var(--line); border-radius: 6px; box-shadow: 0 0 0 4px #000, 0 0 24px rgba(255, 211, 77, .35); padding: 16px 16px 14px; font-family: var(--font-dot); color: var(--ink); }
+#gmmsg .gm-name { color: var(--accent); font-size: .95rem; letter-spacing: .08em; margin-bottom: 8px; }
+#gmmsg .gm-title { font-size: 1.25rem; color: var(--accent); text-align: center; margin: 4px 0 10px; letter-spacing: .12em; }
+#gmmsg .gm-p { font-size: 1rem; line-height: 1.75; margin: 0 0 8px; }
+#gmmsg .gm-rule { margin: 6px 0 10px; padding: 8px 10px; border: 2px solid var(--muted); border-radius: 4px; font-size: .92rem; line-height: 1.7; }
+#gmmsg .gm-rule b { color: var(--accent); }
+#gmmsg .gm-sign { text-align: right; color: var(--muted); font-size: .9rem; margin: 2px 0 12px; }
+#gmmsg .btn { width: 100%; }
+@keyframes gm-in { from { opacity: 0; } to { opacity: 1; } }
+
 #op .op-start { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: 1.15rem; letter-spacing: .1em; animation: op-start-blink 1.2s ease-in-out infinite alternate; }
 @keyframes op-start-blink { from { opacity: 1; } to { opacity: .3; } }
 .evintro .qbox, .evintro .opts { visibility: hidden; }
@@ -3475,6 +3487,26 @@ function enterGame() {
 
 // ================= オープニング =================
 let opRunning = false;
+
+// ================= ゲームマスターからのメッセージ(起動時に、まだ見ていない人にだけ1回出す) =================
+const GM_MSG_ID = "boss-rush-1";
+function showGmMsg() {
+  if (!myName) return;
+  let seenIds = [];
+  try { seenIds = JSON.parse(localStorage.getItem("quiz-gmmsg") || "[]"); } catch (e) {}
+  if (seenIds.includes(GM_MSG_ID) || $("#gmmsg")) return;
+  const d = el("div"); d.id = "gmmsg";
+  const box = el("div", "gm-box");
+  box.append(el("div", "gm-name", "▼ ゲームマスターより"), el("div", "gm-title", "新たな試練、開放!"));
+  box.append(el("p", "gm-p", "冒険者よ、よくぞ戻った。"), el("p", "gm-p", "『ボスラッシュ』への扉が、いま開かれたぞ。歴戦のボスたちが、そなたを待っておる。"));
+  const rule = el("div", "gm-rule");
+  [["持ち時間", "5分。時間内に、ボスを次々と倒せ。"], ["敵", "体力は全員15。中級 → 上級 → レート戦 → 無限回廊の順に登場する。"], ["終わりなし", "全員倒しても、また最初のボスから。時間切れまで戦いは続く。"], ["得点", "1問正解で+100レート。間違えると-30秒の代償を払う。"], ["順位", "専用のランキングで、腕を競え。"]].forEach(([k, v]) => { const r = el("div"); r.append(el("b", null, "◆" + k + ":"), document.createTextNode(v)); rule.appendChild(r); });
+  box.appendChild(rule);
+  box.append(el("p", "gm-p", "腕に覚えのある者だけ、挑むがよい。健闘を祈る。"), el("div", "gm-sign", "── ゲームマスター"));
+  const ok = el("button", "btn", "いざ、冒険へ!");
+  ok.onclick = () => { Bgm.sfx("tap"); seenIds.push(GM_MSG_ID); try { localStorage.setItem("quiz-gmmsg", JSON.stringify(seenIds)); } catch (e) {} d.remove(); };
+  box.appendChild(ok); d.appendChild(box); document.body.appendChild(d);
+}
 function startOpening() {
   if (opRunning) return;
   const op = $("#op");
@@ -3545,7 +3577,7 @@ function startOpening() {
     Bgm.hush(false);
     clearInterval(bubbleTimer);
     cancelAll();
-    op.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, fill: "forwards" }).finished.then(() => { op.hidden = true; op.replaceChildren(); }).catch(() => { op.hidden = true; });
+    op.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, fill: "forwards" }).finished.then(() => { op.hidden = true; op.replaceChildren(); showGmMsg(); }).catch(() => { op.hidden = true; showGmMsg(); });
   };
   let lastTap = 0;
   op.onpointerup = (ev) => { // ダブルタップでスキップ
